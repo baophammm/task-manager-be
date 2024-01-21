@@ -63,22 +63,6 @@ For reminders, users can create task reminders with message and time to send to 
 - [ ] As a user, I can update my firstName, lastName, and password.
 - [ ] As a user, I can delete/close my account.
 
-### Invitation
-
-<!-- - [ ] As a manager, I can create an invitation for account creation with targeted employee's email
-- [ ] As a manger, I can get my list of invitations
-- [ ] As a manager, I can update my invitations
-- [ ] As a manager, I can delete my invitations
-
-- [ ] As a team member, I can receive invitation by email to open account -->
-
-- [ ] As a project owner, I can create an invitation to other user to become project members of my project.
-- [ ] As a project owner, I can see a list of my invitations
-- [ ] As a project owner, I can update my invitations
-- [ ] As a project owner, I can delete my invitations
-
-- [ ] As the invitee, I can receive invitation by email and/or in app to join the project owner's project as project members.
-
 ### Project
 
 <!-- - [ ] As a manager, I can create a project with title, description and projectStatus. I then will be come the project owner.
@@ -95,6 +79,22 @@ For reminders, users can create task reminders with message and time to send to 
 - [ ] As a project owner, I can set project members to become project managers.
 
 - [ ] As a project owner, I can delete the projects that I own.
+
+### Invitation
+
+<!-- - [ ] As a manager, I can create an invitation for account creation with targeted employee's email
+- [ ] As a manger, I can get my list of invitations
+- [ ] As a manager, I can update my invitations
+- [ ] As a manager, I can delete my invitations
+
+- [ ] As a team member, I can receive invitation by email to open account -->
+
+- [ ] As a project owner, I can create an invitation to other user to become project members of my project.
+- [ ] As a project owner, I can see a list of my invitations
+- [ ] As a project owner, I can update my invitations
+- [ ] As a project owner, I can delete my invitations
+
+- [ ] As the invitee, I can receive invitation by email and/or in app to join the project owner's project as project members.
 
 ### Task
 
