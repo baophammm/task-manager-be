@@ -52,27 +52,13 @@ For reminders, users can create task reminders with message and time to send to 
 
 ### User
 
-<!-- - [ ] As a manager, I can delete a team member user account.
-
-- [ ] As a manager or team member, I can see a list of other members
-- [ ] As a manager or team member, I can update my name
-- [ ] As a manager or team member, I can get my current profile info (stay signed in after page refresh)
-- [ ] As a manager or team member, I can see the profile of a specific member given a user ID. -->
-
 - [ ] As a user, I can see a list of users with pagination
 - [ ] As a user, I can update my firstName, lastName, and password.
 - [ ] As a user, I can delete/close my account.
 
 ### Project
 
-<!-- - [ ] As a manager, I can create a project with title, description and projectStatus. I then will be come the project owner.
-- [ ] As a manager, I can view all of the projects using filter (search, status ...)
-- [ ] As a manager, I can edit the everything in the projects, including subtasks, statuses, etc. .
-- [ ] As a manager, I can deleted the projects.
-
-- [ ] As a team member, I can view all projects of my team. -->
-
-- [ ] As a user, I can create a project with title, description and projectStatus, startAt and dueAt. I then will become the project owner.
+- [ ] As a user, I can create a project with title, description, projectStatus, projectMembers, startAt and dueAt. I then will become the project owner.
 - [ ] As a user, I can view all the projects that I own or I am a member of.
 
 - [ ] As a project owner, I can update the projects that I own.
@@ -81,13 +67,6 @@ For reminders, users can create task reminders with message and time to send to 
 - [ ] As a project owner, I can delete the projects that I own.
 
 ### Invitation
-
-<!-- - [ ] As a manager, I can create an invitation for account creation with targeted employee's email
-- [ ] As a manger, I can get my list of invitations
-- [ ] As a manager, I can update my invitations
-- [ ] As a manager, I can delete my invitations
-
-- [ ] As a team member, I can receive invitation by email to open account -->
 
 - [ ] As a project owner, I can create an invitation to other user to become project members of my project.
 - [ ] As a project owner, I can see a list of my invitations
@@ -98,17 +77,6 @@ For reminders, users can create task reminders with message and time to send to 
 
 ### Task
 
-<!-- - [ ] As a manager, I can create a task with title, description, assignee, project, start date, due date and add files to it.
-- [ ] As a manager, I can view all of my tasks in one place
-- [ ] As a manager, I can view all of the tasks of all members using filter (assignee, project, status, ...)
-- [ ] As a manager, I can edit all fields of tasks, including: title, description, status, priority, assignee, project, start date and due date
-- [ ] As a manager, I can delete tasks
-
-- [ ] As a team member, I can view all of my tasks in one place
-- [ ] As a team member, I can view other members' tasks using filter (assignee, project, status, ...)
-- [ ] As a team member, only if the task is unassigned, I can assign it to myself.
-- [ ] As a team member, I can only edit the task assigned to me, on the following fields: status, add files and delete files I uploaded. -->
-
 - [ ] As a user, I can create a task with title, description, assignee, project, startAt, dueAt and files.
 - [ ] As a project owner or project manager, I can create tasks within the project.
 
@@ -117,16 +85,13 @@ For reminders, users can create task reminders with message and time to send to 
 
 - [ ] As a user, I can edit the tasks that I created.
 - [ ] As a project owner or project manager, I can edit tasks within the project.
-- [ ] As a normal project member, I can only update taskStatus that I am assigned with.
+- [ ] As a normal project member, I can only request taskStatus update that I am assigned with.
+
+- [ ] As a project owner, I can approve members' task update requests.
 
 - [ ] As a user, I can delete the tasks that I created.
 
 ### Comment
-
-<!-- - [ ] As a manager OR team member, I can leave comments on other members' tasks and projects with content and file.
-- [ ] As a manager OR team member, I can see a list of comments on a task or a project
-- [ ] As a manager OR team member, I can only edit my comments content and file list.
-- [ ] As a manager OR team member, I can only delete my comments. -->
 
 - [ ] As a user, I can create comments on the projects or tasks of projects that I am in, with content and files.
 - [ ] As a user, I can see list of comments on a project or tasks of projects that I am in.
@@ -135,21 +100,20 @@ For reminders, users can create task reminders with message and time to send to 
 
 ### Notification and Reminder
 
-<!-- - [ ] As a team member or manager, I can get a list of notifications of a task with pagination and filters
-- [ ] As a team member or manager, I can get information of a specific notification of a task with notification ID
-
-- [ ] As a manager, I can receive notification when a task is updated by other team members.
-
-- [ ] As a team member, I can receive notification when a task is assigned to me
-- [ ] As a team member, I can receive notification when my assigned task is updated by the manager.
-- [ ] As a team member, I can receive notification when my assigned task is deleted by the manager. -->
-
-- [ ] As a user, I can create a reminder on the tasks or projects I follow to myself, with title, message, sendTime, targetType, targetID.
+- [ ] As a user, I can create a reminder on the tasks or projects I follow to myself, with title, message, sendTime, targetType, targetId.
 - System will create a notification in the following scenarios:
 
   - [ ] As an assignee and to-be project member, I can receive notification when there is an invitation sent to me to join a project.
   - [ ] As project member, I can receive notification when a task is assigned to me.
   - [ ] As a user, I can receive notification when a task or project I follow is updated by others.
+  - [ ] As a user, I can receive notification when there is a new comment on task and project I am following.
+
+  - [ ] As a project owner, I can receive notification when a task in my project has been requested "Completed" => I can approve => send notification to assignee
+  - [ ] As a project member, I can receive notification when project owner marked task as reviewed => Read review
+  - [ ] As a user, I can receive notifications when there is a due date coming soon
+
+  - [ ] As a user, I can receive a weekly report of my current tasks.
+  - [ ] As a project owner, I can receive a weekly report of my project's members' tasks.
 
 - [ ] As a user, I can get a list of notifications and reminders sent to me with pagination and filters.
 - [ ] As a user, I can get information of a specific notification or reminder.
@@ -261,7 +225,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route POST /invitations
  * @description create an invitation to targeted email to open account
- * @body { toEmail, projectID }
+ * @body { toEmail, projectId }
  * @access login required - project owner
  */
 ```
@@ -270,7 +234,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route PUT /invitations/:id
  * @description update a sent invitation
- * @body { toEmail, projectID }
+ * @body { toEmail, projectId }
  * @access login required - project owner
  */
 ```
@@ -279,7 +243,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route PUT /invitations/:id
  * @description accept an invitation
- * @body { isAccepted }
+ * @body { status }
  * @access Public/login required - invitee receiving invitation - to check later
  */
 ```
@@ -414,7 +378,7 @@ For reminders, users can create task reminders with message and time to send to 
 ```javascript
 /**
  * @route GET /tasks/:id/notifications/:id
- * @description get info of a notification with notification ID
+ * @description get info of a notification with notification Id
  * @access login required
  */
 ```
@@ -425,7 +389,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route POST /comments
  * @description Create a comment
- * @body { targetType: "Task" or "Project", targetID, content, files } // files only allow if targetType is Task
+ * @body { targetType: "Task" or "Project", targetd, content, files } // files only allow if targetType is Task
  * @access login required
  */
 ```
@@ -461,7 +425,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route POST /notifications/reminders
  * @description create a reminder notification for current user
- * @body { title, message, targetType, targetID, sendTime}
+ * @body { title, message, targetType, targetId, sendTime}
  * @access login required
  */
 ```

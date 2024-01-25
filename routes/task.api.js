@@ -47,7 +47,7 @@ const router = express.Router();
 
 /**
  * @route GET /tasks/:id/notifications/:id
- * @description get info of a notification with notification ID
+ * @description get info of a notification with notification Id
  * @access login required
  */
 

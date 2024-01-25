@@ -4,7 +4,7 @@ const router = express.Router();
 /**
  * @route POST /comments
  * @description Create a comment
- * @body { targetType: "Task" or "Project", targetID, content, files } // files only allow if targetType is Task
+ * @body { targetType: "Task" or "Project", targetId, content, files } // files only allow if targetType is Task
  * @access login required
  */
 

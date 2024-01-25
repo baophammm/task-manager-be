@@ -4,7 +4,7 @@ const router = express.Router();
 /**
  * @route POST /notifications/reminders
  * @description create a reminder notification for current user
- * @body { title, message, targetType, targetID, sendTime}
+ * @body { title, message, targetType, targetId, sendTime}
  * @access login required
  */
 

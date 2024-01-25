@@ -32,4 +32,35 @@ validators.checkArrayOfString = (array) => {
   return true;
 };
 
+validators.checkArrayOfObjectId = (array) => {
+  array.forEach((elementId) => {
+    if (!mongoose.Types.ObjectId.isValid(elementId))
+      throw new Error("Invalid Data Type In Array, Expecting ObjectId");
+  });
+
+  return true;
+};
+
+validators.checkEmail = (email) => {
+  const isValid = /\S+@\S+\.\S+/.test(email);
+  if (!isValid) throw new Error("Invalid Email");
+  return true;
+};
+
+validators.checkArrayOfEmail = (array) => {
+  const isValid = array.every((email) => /\S+\S+\.\S+/.test(email));
+  if (!isValid) throw new Error("Invalid email(s) in the array");
+
+  return true;
+};
+
+validators.checkCryptoString = (value) => {
+  const cryptoRegex = /^[a-fA-F0-9]{40}$/;
+  const isValid = cryptoRegex.test(value);
+
+  if (!isValid) throw new Error("Invalid Encrypted Crypto Code");
+
+  return true;
+};
+
 module.exports = validators;

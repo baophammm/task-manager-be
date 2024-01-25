@@ -1,31 +1,26 @@
 const express = require("express");
+const invitationController = require("../controllers/invitation.controller");
+const authentication = require("../middlewares/authentication");
+const validators = require("../middlewares/validators");
+const { body, param, query } = require("express-validator");
 const router = express.Router();
 
 /**
- * @route POST /invitations
- * @description create an invitation to targeted email to open account
- * @body { toEmail, projectID }
- * @access login required - project owner
+ * @route GET /invitations/incoming
+ * @description get a list of current user's incoming invitations with pagination
+ * @access login required
  */
+router.get(
+  "/incoming",
+  authentication.loginRequired,
+  invitationController.getCurrentUserIncomingInvitations
+);
 
 /**
- * @route PUT /invitations/:id
- * @description update a sent invitation
- * @body { toEmail, projectID }
- * @access login required - project owner
- */
-
-/**
- * @route PUT /invitations/:id
- * @description accept an invitation
- * @body { isAccepted }
- * @access Public/login required - invitee receiving invitation - to check later
- */
-
-/**
- * @route DELETE /invitations/:id
- * @description delete an invitation
- * @access login required - project owner
+ * @route GET /invitations/outgoing
+ * @description get a list of current user's outgoing invitations with pagination
+ * @access login required
+ * not too urgent
  */
 
 module.exports = router;

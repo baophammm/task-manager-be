@@ -8,7 +8,7 @@ const notificationSchema = Schema(
     to: [{ type: Schema.Types.ObjectId, required: true, ref: "User" }],
     sendTime: { type: Schema.Types.Date, required: true },
     targetType: { type: String, enum: ["Task", "Project"], required: true },
-    targetID: {
+    targetId: {
       type: Schema.Types.ObjectId,
       required: true,
       refPath: "targetType",
