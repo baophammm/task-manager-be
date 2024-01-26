@@ -5,14 +5,32 @@ const Invitation = require("../models/Invitation");
 const crypto = require("crypto");
 const { createNewMongoInvitation } = require("./invitation.controller");
 
-projectController = {};
+const projectController = {};
 
-const calculateProjectOwnCount = async (userId) => {
-  const projectOwnCount = await Project.countDocuments({
-    projectOwner: userId,
-    isDeleted: false,
-  });
-  await User.findByIdAndUpdate(userId, { projectOwnCount });
+projectController.calculateProjectOwnCount = async (userId) => {
+  try {
+    const projectOwnCount = await Project.countDocuments({
+      projectOwner: userId,
+      isDeleted: false,
+    });
+
+    await User.findByIdAndUpdate(userId, { projectOwnCount });
+  } catch (error) {
+    throw new Error("Calculate Project Own Count Error");
+  }
+};
+
+projectController.calculateProjectInCount = async (userId) => {
+  try {
+    const projectInCount = await Project.countDocuments({
+      projectMembers: userId,
+      isDeleted: false,
+    });
+
+    await User.findByIdAndUpdate(userId, { projectInCount });
+  } catch (error) {
+    throw new Error("Calculate Project In Count Error");
+  }
 };
 
 projectController.createNewProject = catchAsync(async (req, res, next) => {
@@ -51,7 +69,7 @@ projectController.createNewProject = catchAsync(async (req, res, next) => {
     dueAt,
   });
 
-  await calculateProjectOwnCount(currentUserId);
+  await projectController.calculateProjectOwnCount(currentUserId);
 
   // After a project is created, make invitation to each member email list
   if (projectMemberEmails) {
@@ -333,65 +351,7 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
 
   allows.forEach(async (field) => {
     if (req.body[field] !== undefined) {
-      switch (field) {
-        case "newProjectManagers":
-          // check if new object ids already in project members
-          req.body[field].forEach((newProjectManager) => {
-            // if not => error: New managers currently not a member
-            if (!project.projectManagers.includes(newProjectManager))
-              throw new AppError(
-                400,
-                "New Manager(s) currently not a project member",
-                "Update Single Project Error"
-              );
-          });
-          // if yes => replace new array of Object Ids
-          project.projectManagers = req.body[field];
-
-        case "newProjectMemberEmails":
-          // users cannot add members as themselves
-          if (req.body[field].includes(currentUserEmail))
-            throw new AppError(
-              400,
-              "Users cannot send invitation to themselves",
-              "Update Single Project Error"
-            );
-          // Check current member emails vs new member emails.
-          const currentMemberEmails = project.projectMembers.map(
-            (projectMember) => projectMember.email
-          );
-
-          // if new emails => send invitation
-          for (const newProjectMemberEmail of req.body[field]) {
-            if (!currentMemberEmails.includes(newProjectMemberEmail)) {
-              // delete old invitations with same details
-              await Invitation.deleteMany({
-                from: currentUserId,
-                toEmail: newProjectMemberEmail,
-                projectId,
-              });
-
-              // make new invitation
-
-              await createNewMongoInvitation(
-                currentUserId,
-                newProjectMemberEmail,
-                projectId
-              );
-            }
-            // if new emails already in current => keeps members
-          }
-          // if current emails not in new emails => delete members
-          for (const currentMemberEmail of currentMemberEmails) {
-            if (!req.body[field].includes(currentMemberEmail)) {
-              project.projectMembers.filter(
-                (projectMember) => projectMember.email !== currentMemberEmail
-              );
-            }
-          }
-        default:
-          project[field] = req.body[field];
-      }
+      project[field] = req.body[field];
     }
   });
 
@@ -425,8 +385,11 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   // Process
   project.isDeleted = true;
   await project.save();
+  await projectController.calculateProjectOwnCount(currentUserId);
 
-  await calculateProjectOwnCount(currentUserId);
+  project.projectMembers.map(async (projectMember) => {
+    await projectController.calculateProjectInCount(projectMember);
+  });
   // calculate Project In count for each members
   // Response
   return sendResponse(
@@ -677,22 +640,9 @@ projectController.reactProjectInvitation = catchAsync(
 
     // if new status === "accepted" => add new project member to projectMembers array
     if (invitation.status === "accepted") {
-      // let project = await Project.findOneAndUpdate(
-      //   {
-      //     _id: projectId,
-      //     isDeleted: false,
-      //     projectMembers: { $not: { $eq: currentUserId } },
-      //   },
-      //   {
-      //     $push: {
-      //       projectMembers: currentUserId,
-      //     },
-      //   },
-      //   { new: true }
-      // );
-
       project.projectMembers.push(currentUserId);
       await project.save();
+      await projectController.calculateProjectInCount(currentUserId);
     }
 
     // Once success, set invitation to expired
@@ -711,4 +661,125 @@ projectController.reactProjectInvitation = catchAsync(
   }
 );
 
+projectController.updateManagerRoleOfSingleMember = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const { id: projectId, memberId } = req.params;
+    const { isNewManager } = req.body;
+
+    // Business logic validation
+    // check project accessibility
+    let project = await Project.findOne({
+      _id: projectId,
+      isDeleted: false,
+      projectOwner: currentUserId,
+    });
+
+    if (!project)
+      throw new AppError(
+        401,
+        "Cannot Find Project or Unauthorized to See Project",
+        "Update Manager Role Of Single Member Error"
+      );
+
+    // Check if targeted member is in project
+    if (!project.projectMembers.includes(memberId))
+      throw new AppError(
+        400,
+        "Targeted Member Not In Project",
+        "Update Manager Role Of Single Member Error"
+      );
+
+    // check if targeted user already manager
+    isCurrentManager = project.projectManagers.includes(memberId);
+
+    if (isCurrentManager && isNewManager)
+      throw new AppError(
+        400,
+        "Member is already a manager",
+        "Update Manager Role Of Single Member Error"
+      );
+
+    if (!isCurrentManager && !isNewManager)
+      throw new AppError(
+        400,
+        "Member is already not a manager",
+        "Update Manager Role Of Single Member Error"
+      );
+    // Process
+    if (isNewManager) {
+      project.projectManagers.push(memberId);
+    } else if (!isNewManager) {
+      project.projectManagers = project.projectManagers.filter(
+        (manager) => !manager.equals(memberId)
+      );
+    }
+    await project.save();
+    // console.log(project);
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      project,
+      null,
+      "Update Manager Role Of Single Member Error"
+    );
+  }
+);
+
+projectController.removeSingleMemberFromProject = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const { id: projectId, memberId } = req.params;
+
+    // Business logic validation
+    // check project accessibility
+    let project = await Project.findOne({
+      _id: projectId,
+      isDeleted: false,
+      projectOwner: currentUserId,
+    });
+
+    if (!project)
+      throw new AppError(
+        401,
+        "Cannot Find Project or Unauthorized to See Project",
+        "Remove Single Member From Project Error"
+      );
+
+    // Check if targeted member is in project
+    if (!project.projectMembers.includes(memberId))
+      throw new AppError(
+        400,
+        "Targeted Member Not In Project",
+        "Remove Single Member From Project Error"
+      );
+    // Process
+    if (project.projectManagers.includes(memberId)) {
+      project.projectManagers = project.projectManagers.filter(
+        (manager) => !manager.equals(memberId)
+      );
+    }
+
+    project.projectMembers = project.projectMembers.filter(
+      (member) => !member.equals(memberId)
+    );
+
+    await project.save();
+    await projectController.calculateProjectInCount(memberId);
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      project,
+      null,
+      "Remove Single Member From Project Error"
+    );
+  }
+);
 module.exports = projectController;

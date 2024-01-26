@@ -23,8 +23,8 @@ const taskSchema = Schema(
       default: "High",
     },
 
-    assignee: { type: Schema.Types.ObjectId, ref: "User" },
-    project: { type: Schema.Types.ObjectId, ref: "Project" },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project" },
+    assigneeId: { type: Schema.Types.ObjectId, ref: "User" },
     startAt: { type: Schema.Types.Date },
     dueAt: { type: Schema.Types.Date },
 

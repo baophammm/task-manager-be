@@ -104,14 +104,6 @@ router.put(
       .isIn(["Planning", "Ongoing", "Done"]),
     body("startAt", "Invalid Date Format").optional().isDate(),
     body("dueAt", "Invalid Date Format").optional().isDate(),
-    body("newProjectManagers")
-      .optional()
-      .isArray()
-      .custom(validators.checkArrayOfObjectId),
-    body("newProjectMemberEmails")
-      .optional()
-      .isArray()
-      .custom(validators.checkArrayOfEmail),
   ]),
   projectController.updateSingleProject
 );
@@ -209,11 +201,42 @@ router.put(
   ]),
   projectController.reactProjectInvitation
 );
+
 /**
- * @route DELETE /projects/:id/projectMembers/:memberId
- * @description delete a member from project
+ * @route PUT /projects/:id/projectMembers/:memberId
+ * @description change role of a project member
+ * @body { isNewManager: true or false }
  * @access login required
  */
+router.put(
+  "/:id/projectMembers/:memberId",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+    param("memberId").exists().isString().custom(validators.checkObjectId),
+    body("isNewManager", "Invalid isNewManager")
+      .exists()
+      .notEmpty()
+      .isBoolean()
+      .isIn([true, false]),
+  ]),
+  projectController.updateManagerRoleOfSingleMember
+);
+
+/**
+ * @route DELETE /projects/:id/projectMembers/:memberId
+ * @description remove a member from project
+ * @access login required
+ */
+router.delete(
+  "/:id/projectMembers/:memberId",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+    param("memberId").exists().isString().custom(validators.checkObjectId),
+  ]),
+  projectController.removeSingleMemberFromProject
+);
 
 /**
  * @route GET /projects/:id/tasks

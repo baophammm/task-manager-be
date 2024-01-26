@@ -80,7 +80,7 @@ userController.getUsers = catchAsync(async (req, res, next) => {
     filterConditions.push({
       $or: [
         { firstName: { $regex: filter.search, $options: "i" } },
-        { lastName: { $regex: filter.search, $options: "i" } },
+        { lastName: { $regex: filter.search, $options: "i" } }, // add email
       ],
     });
   }
