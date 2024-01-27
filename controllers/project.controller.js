@@ -2,7 +2,7 @@ const { catchAsync, AppError, sendResponse } = require("../helpers/utils");
 const Project = require("../models/Project");
 const User = require("../models/User");
 const Invitation = require("../models/Invitation");
-const crypto = require("crypto");
+const Task = require("../models/Task");
 const { createNewMongoInvitation } = require("./invitation.controller");
 
 const projectController = {};
@@ -163,7 +163,7 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
   const filterCriteria = filterConditions.length
     ? { $and: filterConditions }
     : {};
-  console.log(filterConditions[1].$or);
+
   const count = await Project.countDocuments(filterCriteria);
   const totalPages = Math.ceil(count / limit);
   const offset = limit * (page - 1);
@@ -336,18 +336,7 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
   }
 
   // Process
-  const allows = [
-    "title",
-    "description",
-    "projectStatus",
-    "startAt",
-    "dueAt",
-    "newProjectManagers",
-    "newProjectMemberEmails",
-  ];
-
-  const currentUser = await User.findById(currentUserId);
-  const currentUserEmail = currentUser.email;
+  const allows = ["title", "description", "projectStatus", "startAt", "dueAt"];
 
   allows.forEach(async (field) => {
     if (req.body[field] !== undefined) {
@@ -505,7 +494,8 @@ projectController.getProjectInvitations = catchAsync(async (req, res, next) => {
   // Process
   const filterConditions = [
     { projectId }, //check invitations of selected project only
-    { from: currentUserId }, //only available to sender
+    { from: currentUserId }, //only available to sender,
+    { isExpired: false },
   ];
 
   // queries filter
@@ -529,7 +519,7 @@ projectController.getProjectInvitations = catchAsync(async (req, res, next) => {
   const totalPages = Math.ceil(count / limit);
   const offset = limit * (page - 1);
 
-  let invitations = await Invitation.findOne(filterCriteria)
+  let invitations = await Invitation.find(filterCriteria)
     .sort({ createdAt: -1 })
     .skip(offset)
     .limit(limit);
@@ -779,6 +769,112 @@ projectController.removeSingleMemberFromProject = catchAsync(
       project,
       null,
       "Remove Single Member From Project Error"
+    );
+  }
+);
+
+projectController.getTasksOfSingleProject = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const projectId = req.params.id;
+    let { page, limit, ...filter } = { ...req.query };
+
+    // Business logic validation
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 10;
+
+    // check if allow to see project
+    const project = await Project.findOne({
+      _id: projectId,
+      isDeleted: false,
+      $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }], // Only owner or member of project can see
+    });
+
+    if (!project)
+      throw new AppError(
+        401,
+        "Project Not Found or Unauthorized to see Project",
+        "Get List of Tasks of Single Project Error"
+      );
+
+    // check filter input
+    const allows = [
+      "search",
+      "taskStatus",
+      "priority",
+      "assigneeId",
+      "startAfter",
+      "startBefore",
+      "dueAfter",
+      "dueBefore",
+    ];
+
+    const filterKeys = Object.keys(filter);
+
+    filterKeys.map((key) => {
+      if (!allows.includes(key))
+        throw new AppError(
+          400,
+          `Key ${key} is not allowed. Reminder: Case sensitivity`,
+          "Get List of Projects Error"
+        );
+    });
+    // Process
+    const filterConditions = [
+      { isDeleted: false },
+      { projectId }, //return tasks of selected project only
+    ];
+
+    // query filters
+    filterKeys.forEach((field) => {
+      if (filter[field]) {
+        const condition = (() => {
+          switch (field) {
+            case "search":
+              return {
+                $or: [
+                  { title: { $regex: filter[field], $options: "i" } },
+                  { description: { $regex: filter[field], $options: "i" } },
+                ],
+              };
+            case "startAfter":
+              return { startAt: { $gte: filter[field] } };
+            case "startBefore":
+              return { startAt: { $lte: filter[field] } };
+            case "dueAfter":
+              return { dueAt: { $gte: filter[field] } };
+            case "dueBefore":
+              return { dueAt: { $lte: filter[field] } };
+            default:
+              return { [field]: filter[field] };
+          }
+        })();
+        filterConditions.push(condition);
+      }
+    });
+
+    const filterCriteria = filterConditions.length
+      ? { $and: filterConditions }
+      : {};
+
+    const count = await Task.countDocuments(filterCriteria);
+    const totalPages = Math.ceil(count / limit);
+    const offset = limit * (page - 1);
+
+    let tasks = await Task.find(filterCriteria)
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(limit);
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      { tasks, totalPages, count },
+      null,
+      "Get List of Tasks of Single Project successfully"
     );
   }
 );

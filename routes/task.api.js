@@ -16,7 +16,7 @@ router.post(
   authentication.loginRequired,
   validators.validate([
     body("title", "Invalid Title").exists().notEmpty(),
-    body("taskStatus")
+    body("taskStatus, Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn([
@@ -28,7 +28,7 @@ router.post(
         "Completed",
         "Archived",
       ]),
-    body("priority")
+    body("priority", "Invalid priority. Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Critical", "High", "Medium", "Low"]),
@@ -45,33 +45,101 @@ router.post(
 /**
  * @route GET /tasks
  * @description get a list of current user's tasks with pagination
- * @query {search, taskStatus, priority, project, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, taskStatus, priority, assigneeId, projectId, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
-router.get("/", taskController.getTasks);
+router.get(
+  "/",
+  authentication.loginRequired,
+  validators.validate([
+    query("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn([
+        "Backlog",
+        "Pending",
+        "InProgress",
+        "WaitingForReview",
+        "Reviewed",
+        "Completed",
+        "Archived",
+      ]),
+    query("priority", "Invalid priority. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn(["Critical", "High", "Medium", "Low"]),
+    query("assigneeId").optional().isString().custom(validators.checkObjectId),
+    query("projectId").optional().isString().custom(validators.checkObjectId),
+    query("startAfter", "Invalid Date Format").optional().isDate(),
+    query("startBefore", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+  ]),
+  taskController.getTasks
+);
 
 /**
  * @route GET /tasks/:id
- * @description get single task detail
+ * @description get my single task detail
  * @access login required
  */
-router.get("/:id", taskController.getSingleTask);
+router.get(
+  "/:id",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+  ]),
+  taskController.getSingleTask
+);
 
 /**
  * @route PUT /tasks/:id
  * @description edit fields of tasks
- * @body { title, description, assignee, project, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", priority: "Critical" or "High" or "Medium" or "Low", startAt, dueAt, files }
+ * @body { title, description, assigneeId, projectId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", priority: "Critical" or "High" or "Medium" or "Low", startAt, dueAt, files }
  * @access login required - project owner, project manager for projects, normal project member can only update taskStatus. Any user can edit personal tasks.
  */
-router.put("/:id", taskController.updateSingleTask);
+router.put(
+  "/:id",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+    body("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn([
+        "Backlog",
+        "Pending",
+        "InProgress",
+        "WaitingForReview",
+        "Reviewed",
+        "Completed",
+        "Archived",
+      ]),
+    body("priority", "Invalid priority. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn(["Critical", "High", "Medium", "Low"]),
+    body("projectId").optional().isString().custom(validators.checkObjectId),
+    body("startAt", "Invalid Date Format").optional().isDate(),
+    body("dueAt", "Invalid Date Format").optional().isDate(),
+  ]),
+  taskController.updateSingleTask
+);
 
 /**
  * @route DELETE /tasks/:id
  * @description delete a task
  * @access login required - same as edit task
  */
+router.delete(
+  "/:id",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+  ]),
+  taskController.deleteSingleTask
+);
 
-router.delete("/:id", taskController.deleteSingleTask);
 /**
  * @route GET /tasks/:id/comments
  * @description get a list of comments in a task with pagination

@@ -1,7 +1,7 @@
 const express = require("express");
 const userController = require("../controllers/user.controller");
 const validators = require("../middlewares/validators");
-const { body, param } = require("express-validator");
+const { body, param, query } = require("express-validator");
 const authentication = require("../middlewares/authentication");
 const router = express.Router();
 
@@ -83,6 +83,34 @@ router.delete(
 );
 
 /**
+ * @route GET /users/me/projects
+ * @description get a list of projects of current user
+ * @query { search, currentUserRole: Owner or Manager or Member, projectStatus, startAfter, startBefore, dueAfter, dueBefore}
+ * @access login required
+ */
+router.get(
+  "/me/projects",
+  authentication.loginRequired,
+  validators.validate([
+    query(
+      "currentUserRole",
+      "Invalid currentUserRole. Reminder: Case sensitivity"
+    )
+      .optional()
+      .isString()
+      .isIn(["Owner", "Manager", "Member"]),
+    query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn(["Planning", "Ongoing", "Done"]),
+    query("startAfter", "Invalid Date Format").optional().isDate(),
+    query("startBefore", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+  ]),
+  userController.getCurrentUserProjects
+);
+/**
  * @route GET /users/:id/tasks
  * @description get a list of tasks of a user
  * @access login required
@@ -91,9 +119,38 @@ router.delete(
 /**
  * @route GET /users/me/tasks
  * @description get a list of tasks of current user
+ * @query {search, taskStatus, priority, projectId, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
+router.get(
+  "/me/tasks",
+  authentication.loginRequired,
+  validators.validate([
+    query("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn([
+        "Backlog",
+        "Pending",
+        "InProgress",
+        "WaitingForReview",
+        "Reviewed",
+        "Completed",
+        "Archived",
+      ]),
+    query("priority", "Invalid priority. Reminder: Case sensitivity")
+      .optional()
+      .isString()
+      .isIn(["Critical", "High", "Medium", "Low"]),
 
+    query("projectId").optional().isString().custom(validators.checkObjectId),
+    query("startAfter", "Invalid Date Format").optional().isDate(),
+    query("startBefore", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+    query("dueAfter", "Invalid Date Format").optional().isDate(),
+  ]),
+  userController.getCurrentUserTasks
+);
 /**
  * @route GET /users/me/invitations
  * @description get a list of my sent invitations
