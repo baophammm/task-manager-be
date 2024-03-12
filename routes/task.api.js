@@ -8,7 +8,7 @@ const router = express.Router();
 /**
  * @route POST /tasks
  * @description create a task
- * @body {title, description, taskStatus, taskPriority, assigneeId, projectId, startAt, dueAt, files}
+ * @body {title, description, taskStatus, taskPriority, assigneeId, projectId, startAt, dueAt}
  * @access login required - project owner, project manager for projects. Any user can create task for personal tasks.
  */
 router.post(
@@ -19,25 +19,26 @@ router.post(
     body("taskStatus, Reminder: Case sensitivity")
       .optional()
       .isString()
-      .isIn([
-        "Backlog",
-        "Pending",
-        "InProgress",
-        "WaitingForReview",
-        "Reviewed",
-        "Completed",
-        "Archived",
-      ]),
+      .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
     body("priority", "Invalid priority. Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Critical", "High", "Medium", "Low"]),
 
-    body("projectId").optional().isString().custom(validators.checkObjectId),
-    body("assigneeId").optional().isString().custom(validators.checkObjectId),
-    body("startAt", "Invalid Date Format").optional().isDate(),
-    body("dueAt", "Invalid Date Format").optional().isDate(),
-    body("files").optional().isArray().custom(validators.checkArrayOfString),
+    body("projectId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    body("assigneeId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    body("startAt", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
+    body("dueAt", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
   ]),
   taskController.createNewTask
 );
@@ -55,25 +56,31 @@ router.get(
     query("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
       .optional()
       .isString()
-      .isIn([
-        "Backlog",
-        "Pending",
-        "InProgress",
-        "WaitingForReview",
-        "Reviewed",
-        "Completed",
-        "Archived",
-      ]),
+      .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
     query("priority", "Invalid priority. Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Critical", "High", "Medium", "Low"]),
-    query("assigneeId").optional().isString().custom(validators.checkObjectId),
-    query("projectId").optional().isString().custom(validators.checkObjectId),
-    query("startAfter", "Invalid Date Format").optional().isDate(),
-    query("startBefore", "Invalid Date Format").optional().isDate(),
-    query("dueAfter", "Invalid Date Format").optional().isDate(),
-    query("dueAfter", "Invalid Date Format").optional().isDate(),
+    query("assigneeId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    query("projectId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    query("startAfter", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
+    query("startBefore", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
+    query("dueBefore", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
+    query("dueAfter", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
   ]),
   taskController.getTasks
 );
@@ -99,29 +106,32 @@ router.get(
  * @access login required - project owner, project manager for projects, normal project member can only update taskStatus. Any user can edit personal tasks.
  */
 router.put(
-  "/:id",
+  "/:taskId",
   authentication.loginRequired,
   validators.validate([
-    param("id").exists().isString().custom(validators.checkObjectId),
+    param("taskId").exists().isString().custom(validators.checkObjectId),
     body("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
       .optional()
       .isString()
-      .isIn([
-        "Backlog",
-        "Pending",
-        "InProgress",
-        "WaitingForReview",
-        "Reviewed",
-        "Completed",
-        "Archived",
-      ]),
+      .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
     body("priority", "Invalid priority. Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Critical", "High", "Medium", "Low"]),
-    body("projectId").optional().isString().custom(validators.checkObjectId),
-    body("startAt", "Invalid Date Format").optional().isDate(),
-    body("dueAt", "Invalid Date Format").optional().isDate(),
+    body("assigneeId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    body("projectId")
+      .optional({ nullable: true, values: "falsy" })
+      .isString()
+      .custom(validators.checkObjectId),
+    body("startAt", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
+    body("dueAt", "Invalid Date Format")
+      .optional({ nullable: true, values: "falsy" })
+      .isDate(),
   ]),
   taskController.updateSingleTask
 );
@@ -145,6 +155,14 @@ router.delete(
  * @description get a list of comments in a task with pagination
  * @access login required
  */
+router.get(
+  "/:taskId/comments",
+  authentication.loginRequired,
+  validators.validate([
+    param("taskId").exists().isString().custom(validators.checkObjectId),
+  ]),
+  taskController.getCommentsOfTask
+);
 
 /**
  * @route GET /tasks/:id/notifications

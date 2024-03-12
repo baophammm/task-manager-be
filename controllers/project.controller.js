@@ -36,22 +36,16 @@ projectController.calculateProjectInCount = async (userId) => {
 projectController.createNewProject = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  let {
-    title,
-    description,
-    projectStatus,
-    startAt,
-    dueAt,
-    projectMemberEmails,
-  } = req.body;
+  let { title, description, projectStatus, startAt, dueAt, projectMembers } =
+    req.body;
 
   // Business logic validation
   const currentUser = await User.findById(currentUserId);
   const currentUserEmail = currentUser.email;
 
-  if (projectMemberEmails) {
+  if (projectMembers) {
     // cannot send invitation to self
-    if (projectMemberEmails.includes(currentUserEmail))
+    if (projectMembers.includes(currentUserId))
       throw new AppError(
         400,
         "Users cannot send invitation to themselves",
@@ -65,18 +59,20 @@ projectController.createNewProject = catchAsync(async (req, res, next) => {
     description,
     projectStatus,
     projectOwner: currentUserId,
+    projectMembers: [currentUserId],
     startAt,
     dueAt,
   });
 
   await projectController.calculateProjectOwnCount(currentUserId);
 
-  // After a project is created, make invitation to each member email list
-  if (projectMemberEmails) {
+  // REWRITE THIS TO User ID
+
+  if (projectMembers) {
     // send invitation
     const projectId = project._id;
-    projectMemberEmails.map(async (toEmail) => {
-      await createNewMongoInvitation(currentUserId, toEmail, projectId);
+    projectMembers.map(async (targetUserId) => {
+      await createNewMongoInvitation(currentUserId, targetUserId, projectId);
     });
   }
 
@@ -103,12 +99,13 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
   // check filter input
   const allows = [
     "search",
+    "currentUserRole",
     "projectStatus",
-    "projectOwner",
     "startAfter",
     "startBefore",
     "dueAfter",
     "dueBefore",
+    "sortBy",
   ];
 
   const filterKeys = Object.keys(filter);
@@ -144,6 +141,19 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
                 { description: { $regex: filter[field], $options: "i" } },
               ],
             };
+          case "currentUserRole":
+            if (filter[field] === "Owner") {
+              return { projectOwner: currentUserId };
+            } else if (filter[field] === "Manager") {
+              return { projectManagers: currentUserId };
+            } else if (filter[field] === "Member") {
+              return {
+                $and: [
+                  { projectMembers: currentUserId },
+                  { projectManagers: { $ne: currentUserId } },
+                ],
+              };
+            }
           case "startAfter":
             return { startAt: { $gte: filter[field] } };
           case "startBefore":
@@ -152,6 +162,8 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
             return { dueAt: { $gte: filter[field] } };
           case "dueBefore":
             return { dueAt: { $lte: filter[field] } };
+          case "sortBy":
+            return {};
           default:
             return { [field]: filter[field] };
         }
@@ -164,14 +176,37 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
     ? { $and: filterConditions }
     : {};
 
+  console.log(filterCriteria);
+
   const count = await Project.countDocuments(filterCriteria);
   const totalPages = Math.ceil(count / limit);
   const offset = limit * (page - 1);
 
+  let sortValue = { createdAt: -1 };
+
+  if (filter["sortBy"]) {
+    sortValue = (() => {
+      switch (filter["sortBy"]) {
+        case "title_asc":
+          return { title: 1 };
+        case "title_desc":
+          return { title: -1 };
+        case "created_at_asc":
+          return { createdAt: 1 };
+        case "created_at_desc":
+          return { createdAt: -1 };
+        default:
+          sortValue;
+      }
+    })();
+  }
+
   let projects = await Project.find(filterCriteria)
-    .sort({ createdAt: -1 })
+    .sort(sortValue)
+    .collation({ locale: "en", strength: 2 })
     .skip(offset)
-    .limit(limit);
+    .limit(limit)
+    .populate("projectOwner");
 
   // Response
   return sendResponse(
@@ -187,7 +222,7 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
 projectController.getSingleProject = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const projectId = req.params.id;
+  const projectId = req.params.projectId;
 
   // Business logic validation
   const filterConditions = [
@@ -202,7 +237,10 @@ projectController.getSingleProject = catchAsync(async (req, res, next) => {
     ? { $and: filterConditions }
     : {};
 
-  let project = await Project.findOne(filterCriteria);
+  let project = await Project.findOne(filterCriteria).populate([
+    "projectOwner",
+    "projectMembers",
+  ]);
 
   if (!project)
     throw new AppError(
@@ -226,7 +264,7 @@ projectController.getMembersOfSingleProject = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const projectId = req.params.id;
+    const projectId = req.params.projectId;
     let { page, limit } = req.query;
     // Business logic validation
     page = parseInt(page) || 1;
@@ -289,7 +327,7 @@ projectController.getMembersOfSingleProject = catchAsync(
       res,
       200,
       true,
-      { projectMembers, totalPages, count },
+      { users: projectMembers, totalPages, count },
       null,
       "Get Project Member List of A Project successfully"
     );
@@ -299,16 +337,14 @@ projectController.getMembersOfSingleProject = catchAsync(
 projectController.updateSingleProject = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const projectId = req.params.id;
+  const projectId = req.params.projectId;
 
   // Business logic validation
 
   const filterConditions = [
     { _id: projectId },
     { isDeleted: false },
-    {
-      $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }], // project only shows up when current user owns it or is a member in it
-    },
+    { projectOwner: currentUserId }, //only allows to update project when he/she is the owner
   ];
 
   const filterCriteria = filterConditions.length
@@ -359,7 +395,7 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
 projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const projectId = req.params.id;
+  const projectId = req.params.projectId;
   // Business logic validation
   let project = await Project.findOne({ _id: projectId, isDeleted: false });
   if (!project)
@@ -391,12 +427,90 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   );
 });
 
+projectController.getProjectAddNewMembers = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const projectId = req.params.projectId;
+    let { page, limit, ...filter } = { ...req.query };
+
+    // Business logic Validation
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 10;
+
+    const allows = ["search"];
+    const filterKeys = Object.keys(filter);
+
+    filterKeys.map((key) => {
+      if (!allows.includes(key))
+        throw new AppError(
+          400,
+          `Key ${key} is not allowed`,
+          "Get List of Project Add New Members Error"
+        );
+    });
+    // Process
+
+    const filterConditions = [
+      {
+        isDeleted: false,
+      },
+    ];
+
+    // filter queries
+    if (filter.search) {
+      filterConditions.push({
+        $or: [
+          { firstName: { $regex: filter.search, $options: "i" } },
+          { lastName: { $regex: filter.search, $options: "i" } },
+          { email: { $regex: filter.search, $options: "i" } },
+        ],
+      });
+    }
+
+    const filterCriteria = filterConditions.length
+      ? { $and: filterConditions }
+      : {};
+
+    const count = await User.countDocuments(filterCriteria);
+    const totalPages = Math.ceil(count / limit);
+    const offset = limit * (page - 1);
+
+    let users = await User.find(filterCriteria)
+      .sort({ lastName: 1 })
+      .skip(offset)
+      .limit(limit);
+
+    // TODO USERS WITH PROJECT INVITATION
+
+    const promises = users.map(async (user) => {
+      let temp = user.toJSON();
+      temp.invitation = await Invitation.findOne({
+        to: user._id,
+        project: projectId,
+        isExpired: false,
+      });
+      return temp;
+    });
+
+    const usersWithInvitation = await Promise.all(promises);
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      { users: usersWithInvitation, totalPages, count },
+      null,
+      "Get List of Project Add New Members successfully"
+    );
+  }
+);
+
 projectController.createNewProjectInvitation = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const projectId = req.params.id;
-    const toEmail = req.body.toEmail;
+    const projectId = req.params.projectId;
+    const toUserId = req.body.to;
 
     // Business logic validation
 
@@ -413,53 +527,92 @@ projectController.createNewProjectInvitation = catchAsync(
         "Create New Project Invitation Error"
       );
 
-    // check if project already has member with inviting email
-    // get list of emails of current project members
-    let projectMembersInfo = await User.find({
-      _id: { $in: project.projectMembers },
-      isDeleted: false,
-    });
-
-    let projectMemberEmails = projectMembersInfo.map((member) => member.email);
-
-    if (projectMemberEmails.includes(toEmail))
+    const user = await User.findOne({ _id: toUserId, isDeleted: false });
+    if (!user)
       throw new AppError(
         400,
-        "Invitee already a project member",
+        "User not found",
         "Create New Project Invitation Error"
       );
-    // Process
-    // Delete all previous invitations with same inviter, project and invitee
-    await Invitation.deleteMany({
-      from: currentUserId,
-      toEmail,
-      projectId,
-    });
 
-    // make Invitation to user
-
-    let invitation = await createNewMongoInvitation(
-      currentUserId,
-      toEmail,
-      projectId
+    let invitation = await Invitation.findOne(
+      {
+        project: projectId,
+        to: toUserId,
+      },
+      "+isExpired"
     );
 
-    // Response
-    return sendResponse(
-      res,
-      200,
-      true,
-      invitation,
-      null,
-      "Create New Project Invitation successfully"
-    );
+    if (!invitation) {
+      // Create new project invitation
+      invitation = await createNewMongoInvitation(
+        currentUserId,
+        toUserId,
+        projectId
+      );
+      return sendResponse(
+        res,
+        200,
+        true,
+        invitation,
+        null,
+        "Create New Project Invitation successfully"
+      );
+    } else {
+      if (invitation.isExpired === false) {
+        switch (invitation.status) {
+          case "accepted":
+            throw new AppError(
+              400,
+              "User is already a project member",
+              "Create New Project Invitation Error"
+            );
+          case "pending":
+            throw new AppError(
+              400,
+              "You already sent a project invitation to this user",
+              "Create New Project Invitation Error"
+            );
+          default:
+            invitation.from = currentUserId;
+            invitation.to = toUserId;
+            invitation.status = "pending";
+            invitation.isExpired = false;
+            await invitation.save();
+
+            return sendResponse(
+              res,
+              200,
+              true,
+              invitation,
+              null,
+              "Create New Project Invitation successfully"
+            );
+        }
+      } else if (invitation.isExpired === true) {
+        invitation.from = currentUserId;
+        invitation.to = toUserId;
+        invitation.status = "pending";
+        invitation.isExpired = false;
+        await invitation.save();
+
+        return sendResponse(
+          res,
+          200,
+          true,
+          invitation,
+          null,
+          "Create New Project Invitation successfully"
+        );
+      }
+    }
   }
 );
 
 projectController.getProjectInvitations = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const projectId = req.params.id;
+  const projectId = req.params.projectId;
   let { page, limit, ...filter } = { ...req.query };
 
   // Business logic validation
@@ -493,17 +646,17 @@ projectController.getProjectInvitations = catchAsync(async (req, res, next) => {
 
   // Process
   const filterConditions = [
-    { projectId }, //check invitations of selected project only
+    { project: projectId }, //check invitations of selected project only
     { from: currentUserId }, //only available to sender,
     { isExpired: false },
   ];
 
   // queries filter
-  if (req.query.search) {
-    filterConditions.push({
-      toEmail: { $regex: req.query.search, $options: "i" },
-    });
-  }
+  // if (req.query.search) {
+  //   filterConditions.push({
+  //     toEmail: { $regex: req.query.search, $options: "i" },
+  //   });
+  // }
 
   if (req.query.status) {
     filterConditions.push({
@@ -539,16 +692,18 @@ projectController.cancelSingleProjectInvitation = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const { id: projectId, invitationCode } = req.params;
+    const { projectId, inviteeId } = req.params;
 
     // Business logic validation
-    let invitation = await Invitation.findOne({
+    const filterConditions = {
       from: currentUserId,
-      invitationCode,
-      projectId,
+      to: inviteeId,
+      project: projectId,
       status: "pending",
       isExpired: false,
-    });
+    };
+
+    let invitation = await Invitation.findOne(filterConditions);
 
     if (!invitation)
       throw new AppError(
@@ -558,10 +713,7 @@ projectController.cancelSingleProjectInvitation = catchAsync(
       );
 
     // Process
-    // Soft Delete by expiring the invitation
-    invitation.isExpired = true;
-    invitation.status = "canceled";
-    await invitation.save();
+    await Invitation.findOneAndDelete(filterConditions);
 
     // Response
     return sendResponse(
@@ -579,18 +731,20 @@ projectController.reactProjectInvitation = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const { id: projectId, invitationCode } = req.params;
+    const { projectId, inviteeId } = req.params;
 
     // Business logic validation
     // Current user must have matching email to invitation toEmail
-    let currentUser = await User.findOne({
-      _id: currentUserId,
-      isDeleted: false,
-    });
+    if (currentUserId !== inviteeId)
+      throw new AppError(
+        401,
+        "Unauthorized to React to this Invitation",
+        "React Project Invitation Error"
+      );
 
     let invitation = await Invitation.findOne({
-      toEmail: currentUser.email,
-      invitationCode,
+      to: currentUserId,
+      project: projectId,
       status: "pending",
       isExpired: false,
     });
@@ -598,7 +752,7 @@ projectController.reactProjectInvitation = catchAsync(
     if (!invitation)
       throw new AppError(
         400,
-        "Invitation not found or Unauthorized to React to Invitation",
+        "Invitation not found",
         "React Project Invitation Error"
       );
 
@@ -620,6 +774,7 @@ projectController.reactProjectInvitation = catchAsync(
         "Member already in project",
         "React Project Invitation Error"
       );
+
     // Process
     const allows = ["status"];
     allows.forEach((field) => {
@@ -635,8 +790,6 @@ projectController.reactProjectInvitation = catchAsync(
       await projectController.calculateProjectInCount(currentUserId);
     }
 
-    // Once success, set invitation to expired
-    invitation.isExpired = true;
     await invitation.save();
 
     // Response
@@ -655,9 +808,8 @@ projectController.updateManagerRoleOfSingleMember = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const { id: projectId, memberId } = req.params;
+    const { projectId, memberId } = req.params;
     const { isNewManager } = req.body;
-
     // Business logic validation
     // check project accessibility
     let project = await Project.findOne({
@@ -723,14 +875,14 @@ projectController.removeSingleMemberFromProject = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const { id: projectId, memberId } = req.params;
+    const { projectId, memberId } = req.params;
 
     // Business logic validation
     // check project accessibility
     let project = await Project.findOne({
       _id: projectId,
       isDeleted: false,
-      projectOwner: currentUserId,
+      projectMembers: currentUserId,
     });
 
     if (!project)
@@ -761,6 +913,12 @@ projectController.removeSingleMemberFromProject = catchAsync(
     await project.save();
     await projectController.calculateProjectInCount(memberId);
 
+    // when member is removed, delete assigned role, invitation
+    await Invitation.findOneAndDelete({
+      project: projectId,
+      to: memberId,
+    });
+
     // Response
     return sendResponse(
       res,
@@ -777,7 +935,7 @@ projectController.getTasksOfSingleProject = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const projectId = req.params.id;
+    const projectId = req.params.projectId;
     let { page, limit, ...filter } = { ...req.query };
 
     // Business logic validation
@@ -823,7 +981,7 @@ projectController.getTasksOfSingleProject = catchAsync(
     // Process
     const filterConditions = [
       { isDeleted: false },
-      { projectId }, //return tasks of selected project only
+      { project: projectId }, //return tasks of selected project only
     ];
 
     // query filters

@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Project = require("../models/Project");
 const Task = require("../models/Task");
 const bcrypt = require("bcryptjs");
+const Invitation = require("../models/Invitation");
 
 const userController = {};
 userController.register = catchAsync(async (req, res, next) => {
@@ -82,7 +83,8 @@ userController.getUsers = catchAsync(async (req, res, next) => {
     filterConditions.push({
       $or: [
         { firstName: { $regex: filter.search, $options: "i" } },
-        { lastName: { $regex: filter.search, $options: "i" } }, // add email
+        { lastName: { $regex: filter.search, $options: "i" } },
+        { email: { $regex: filter.search, $options: "i" } }, // add email
       ],
     });
   }
@@ -173,19 +175,11 @@ userController.updateProfile = catchAsync(async (req, res, next) => {
     throw new AppError(400, "Permission required", "Update User Profile Error");
 
   // Process
-  const allows = ["firstName", "lastName", "password"];
+  const allows = ["firstName", "lastName", "profilePictureUrl"];
 
   for (const field of allows) {
     if (req.body[field] !== undefined) {
-      if (field === "password") {
-        //encrypt updated password
-        const salt = await bcrypt.genSalt(10);
-        let password = await bcrypt.hash(req.body[field], salt);
-
-        user[field] = password;
-      } else {
-        user[field] = req.body[field];
-      }
+      user[field] = req.body[field];
     }
   }
   await user.save();
@@ -332,6 +326,257 @@ userController.getCurrentUserProjects = catchAsync(async (req, res, next) => {
   );
 });
 
+userController.addProjectToUserFavorite = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const userId = req.params.id;
+  const projectId = req.body.projectId;
+
+  // Business logic validation
+  const targetUser = await User.findOne({
+    _id: userId,
+    isDeleted: false,
+  });
+
+  if (!targetUser)
+    throw new AppError(
+      400,
+      "User not found",
+      "Add Project to User Favorite Error"
+    );
+
+  if (currentUserId !== userId)
+    throw new AppError(
+      401,
+      "Unauthorized to add favorite project to this user",
+      "Add Project To User Favorite Error"
+    );
+
+  // Check if user is in selected project
+  const project = await Project.findOne({
+    _id: projectId,
+    isDeleted: false,
+    projectMembers: userId,
+  });
+
+  if (!project)
+    throw new AppError(
+      400,
+      "Project not found",
+      "Add Project To User Favorite Error"
+    );
+
+  // Check if project is already favorite
+  if (targetUser.favoriteProjects.includes(projectId))
+    throw new AppError(
+      400,
+      "Project is already User's favorite",
+      "Add Project To User Favorite Error"
+    );
+
+  // Process
+  targetUser.favoriteProjects.unshift(projectId);
+  await targetUser.save();
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    targetUser,
+    null,
+    "Add Project To User Favorite successfully"
+  );
+});
+userController.getUserFavoriteProjects = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  let userId = req.params.id;
+  let { page, limit, ...filter } = { ...req.query };
+  // Business logic validation
+  const targetUser = await User.findOne({
+    _id: userId,
+    isDeleted: false,
+  });
+
+  if (!targetUser)
+    throw new AppError(
+      400,
+      "User not found",
+      "Get User Favorite Projects Error"
+    );
+
+  if (currentUserId !== userId)
+    throw new AppError(
+      400,
+      "Cannot see other users' favorite projects",
+      "Get User Favorite Projects Error"
+    );
+
+  page = parseInt(page) || 1;
+  limit = parseInt(limit) || 10;
+
+  // check filter input
+  const allows = [
+    "search",
+    "currentUserRole",
+    "projectStatus",
+    "startAfter",
+    "startBefore",
+    "dueAfter",
+    "dueBefore",
+  ];
+
+  const filterKeys = Object.keys(filter);
+
+  filterKeys.map((key) => {
+    if (!allows.includes(key))
+      throw new AppError(
+        400,
+        `Key ${key} is not allowed. Reminder: Case sensitivity`,
+        "Get User Favorite Projects Error"
+      );
+  });
+
+  // Process
+  const filterConditions = [
+    { isDeleted: false },
+    { _id: { $in: targetUser.favoriteProjects } }, // only projects that are users favorite
+  ];
+
+  // query filters
+  filterKeys.forEach((field) => {
+    if (filter[field]) {
+      const condition = (() => {
+        switch (field) {
+          case "search":
+            return {
+              $or: [
+                { title: { $regex: filter[field], $options: "i" } },
+                { description: { $regex: filter[field], $options: "i" } },
+              ],
+            };
+          case "currentUserRole":
+            if (filter[field] === "Owner") {
+              return { projectOwner: currentUserId };
+            } else if (filter[field] === "Manager") {
+              return { projectManagers: currentUserId };
+            } else if (filter[field] === "Member") {
+              return {
+                $and: [
+                  { projectMembers: currentUserId },
+                  { projectManagers: { $ne: currentUserId } },
+                ],
+              };
+            }
+          case "startAfter":
+            return { startAt: { $gte: filter[field] } };
+          case "startBefore":
+            return { startAt: { $lte: filter[field] } };
+          case "dueAfter":
+            return { dueAt: { $gte: filter[field] } };
+          case "dueBefore":
+            return { dueAt: { $lte: filter[field] } };
+          default:
+            return { [field]: filter[field] };
+        }
+      })();
+      filterConditions.push(condition);
+    }
+  });
+
+  const filterCriteria = filterConditions.length
+    ? { $and: filterConditions }
+    : {};
+
+  const count = await Project.countDocuments(filterCriteria);
+  const totalPages = Math.ceil(count / limit);
+  const offset = limit * (page - 1);
+
+  let projects = await Project.find(filterCriteria)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .populate("projectOwner");
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    { projects, totalPages, count },
+    null,
+    "Get User Favorite Projects successfully"
+  );
+});
+
+userController.removeProjectFromUserFavorite = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const userId = req.params.id;
+    const projectId = req.params.projectId;
+
+    // Business logic validation
+    const targetUser = await User.findOne({
+      _id: userId,
+      isDeleted: false,
+    });
+
+    if (!targetUser)
+      throw new AppError(
+        400,
+        "User not found",
+        "Remove Project From User's Favorite Error"
+      );
+
+    if (currentUserId !== userId)
+      throw new AppError(
+        401,
+        "Unauthorized to remove project from this User",
+        "Remove Project From User's Favorite Error"
+      );
+
+    const project = await Project.findOne({
+      _id: projectId,
+      isDeleted: false,
+    });
+
+    if (!project)
+      throw new AppError(
+        400,
+        "Project not found",
+        "Remove Project From User's Favorite Error"
+      );
+
+    if (!targetUser.favoriteProjects.includes(projectId))
+      throw new AppError(
+        400,
+        "Project is not User's favorite",
+        "Remove Project From User's Favorite Error"
+      );
+
+    // Process
+
+    targetUser.favoriteProjects = targetUser.favoriteProjects.filter(
+      (project) => !project.equals(projectId)
+    );
+
+    console.log(targetUser);
+
+    await targetUser.save();
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      targetUser,
+      null,
+      "Remove Project From Users's Favorite successfully"
+    );
+  }
+);
 userController.getCurrentUserTasks = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
@@ -366,7 +611,7 @@ userController.getCurrentUserTasks = catchAsync(async (req, res, next) => {
 
   // Process
   const filterConditions = [
-    { assigneeId: currentUserId }, //tasks assigned to current user
+    { assignee: currentUserId }, //tasks assigned to current user
     { isDeleted: false },
   ];
 

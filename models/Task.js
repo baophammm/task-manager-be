@@ -7,14 +7,7 @@ const taskSchema = Schema(
     description: { type: String, default: "" },
     taskStatus: {
       type: String,
-      enum: [
-        "Backlog",
-        "Pending",
-        "InProgress",
-        "Completed",
-        "Reviewed",
-        "Archived",
-      ],
+      enum: ["Backlog", "InProgress", "Completed", "Archived"],
       default: "Backlog",
     },
     priority: {
@@ -23,8 +16,8 @@ const taskSchema = Schema(
       default: "High",
     },
 
-    projectId: { type: Schema.Types.ObjectId, ref: "Project" },
-    assigneeId: { type: Schema.Types.ObjectId, ref: "User" },
+    project: { type: Schema.Types.ObjectId, default: null, ref: "Project" },
+    assignee: { type: Schema.Types.ObjectId, default: null, ref: "User" },
     startAt: { type: Schema.Types.Date },
     dueAt: { type: Schema.Types.Date },
 

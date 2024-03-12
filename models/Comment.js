@@ -12,7 +12,7 @@ const commentSchema = Schema(
       refPath: "targetType",
     },
 
-    files: { type: [{ type: String }], default: [] },
+    // files: { type: [{ type: String }], default: [] },
   },
   {
     timestamps: true,

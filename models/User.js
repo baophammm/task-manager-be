@@ -9,11 +9,18 @@ const userSchema = Schema(
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true, select: false },
+    profilePictureUrl: { type: String, default: "" },
 
     isDeleted: { type: Boolean, default: false, select: false },
     projectOwnCount: { type: Number, default: 0 },
     projectInCount: { type: Number, default: 0 },
     taskCount: { type: Number, default: 0 },
+
+    favoriteProjects: {
+      type: [{ type: Schema.Types.ObjectId }],
+      default: [],
+      ref: "Project",
+    },
   },
   {
     timestamps: true,

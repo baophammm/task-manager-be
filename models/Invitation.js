@@ -4,8 +4,8 @@ const Schema = mongoose.Schema;
 const invitationSchema = Schema(
   {
     from: { type: Schema.Types.ObjectId, required: true, ref: "User" },
-    toEmail: { type: String, required: true },
-    projectId: { type: String, required: true, ref: "Project" },
+    to: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+    project: { type: Schema.Types.ObjectId, required: true, ref: "Project" },
     invitationCode: { type: String, required: true },
     status: {
       type: String,

@@ -2,6 +2,7 @@ const { catchAsync, AppError, sendResponse } = require("../helpers/utils");
 const Task = require("../models/Task");
 const User = require("../models/User");
 const Project = require("../models/Project");
+const Comment = require("../models/Comment");
 const {
   Types: { ObjectId },
 } = require("mongoose");
@@ -11,7 +12,7 @@ const taskController = {};
 taskController.calculateUserTaskCount = async (userId) => {
   try {
     const taskCount = await Task.countDocuments({
-      assigneeId: userId,
+      assignee: userId,
       isDeleted: false,
     });
 
@@ -24,7 +25,7 @@ taskController.calculateUserTaskCount = async (userId) => {
 taskController.calculateProjectTaskCount = async (projectId) => {
   try {
     const taskCount = await Task.countDocuments({
-      projectId,
+      project: projectId,
       isDeleted: false,
     });
 
@@ -45,14 +46,13 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     assigneeId,
     startAt,
     dueAt,
-    files,
   } = req.body;
 
   // Business logic validation
   // if project, can only set if your are project owner or manager
 
   if (projectId) {
-    let project = await Project.findOne({
+    let targetProject = await Project.findOne({
       _id: projectId,
       isDeleted: false,
       $or: [
@@ -61,7 +61,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
       ],
     });
 
-    if (!project)
+    if (!targetProject)
       throw new AppError(
         401,
         "Cannot find project or Unauthorized to set task to this project",
@@ -79,8 +79,8 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
         throw new AppError(400, "Assignee not found", "Create New Task Error");
 
       if (
-        !project.projectMembers.includes(assigneeId) &&
-        !project.projectOwner.equals(assigneeId)
+        !targetProject.projectMembers.includes(assigneeId) &&
+        !targetProject.projectOwner.equals(assigneeId)
       )
         throw new AppError(
           400,
@@ -113,11 +113,10 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     description,
     taskStatus,
     priority,
-    projectId,
-    assigneeId,
+    project: projectId,
+    assignee: assigneeId,
     startAt,
     dueAt,
-    files,
     createdBy: currentUserId,
   });
 
@@ -140,7 +139,7 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
   let { page, limit, ...filter } = { ...req.query };
-
+  console.log(currentUserId);
   // Business logic validation
   page = parseInt(page) || 1;
   limit = parseInt(limit) || 10;
@@ -182,7 +181,7 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
       isDeleted: false,
     },
     {
-      $or: [{ assigneeId: currentUserId }, { projectId: { $in: projectIds } }],
+      $or: [{ assignee: currentUserId }, { project: { $in: projectIds } }],
     }, // tasks assigned to current user or other members in his/her projects
   ];
 
@@ -197,6 +196,14 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
                 { title: { $regex: filter[field], $options: "i" } },
                 { description: { $regex: filter[field], $options: "i" } },
               ],
+            };
+          case "projectId":
+            return {
+              project: filter[field],
+            };
+          case "assigneeId":
+            return {
+              assignee: filter[field],
             };
           case "startAfter":
             return { startAt: { $gte: filter[field] } };
@@ -225,12 +232,14 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   let tasks = await Task.find(filterCriteria)
     .sort({ createdAt: -1 })
     .skip(offset)
-    .limit(limit);
+    .limit(limit)
+    .populate(["project", "assignee"]);
 
   // Response
   return sendResponse(
     res,
     200,
+    true,
     { tasks, totalPages, count },
     null,
     "Get List of Tasks successfully "
@@ -256,11 +265,11 @@ taskController.getSingleTask = catchAsync(async (req, res, next) => {
     isDeleted: false,
     $or: [
       {
-        assigneeId: currentUserId,
+        assignee: currentUserId,
       },
-      { projectId: { $in: projectIds } },
+      { project: { $in: projectIds } },
     ], //only tasks assigned to current user or within his/her projects
-  });
+  }).populate(["project", "assignee"]);
 
   if (!task)
     throw new AppError(
@@ -283,7 +292,7 @@ taskController.getSingleTask = catchAsync(async (req, res, next) => {
 taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const taskId = req.params.id;
+  const taskId = req.params.taskId;
 
   // Business logic validation
   // only allow to edit task that is personal or if I am project Owner or Manager.
@@ -298,8 +307,8 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     _id: taskId,
     isDeleted: false,
     $or: [
-      { projectId: null, createdBy: currentUserId, assigneeId: currentUserId }, //personal task without project
-      { projectId: { $in: projectIds } }, //tasks within projects that current user is owner or manager
+      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+      { project: { $in: projectIds } }, //tasks within projects that current user is owner or manager
     ],
   });
 
@@ -319,8 +328,8 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       );
   }
 
-  const previousAssigneeId = task.assigneeId;
-  const previousProjectId = task.projectId;
+  const previousAssigneeId = task.assignee;
+  const previousProjectId = task.project;
   const newAssigneeId = req.body.assigneeId;
   const newProjectId = req.body.projectId;
 
@@ -335,6 +344,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   }
 
   // If task not in project and add to new project => Check if new project in project Ids list of owner or manager
+
   if (!previousProjectId && newProjectId) {
     // ERROR TO CHECK project id list cannot include newProjectId
     // const mongoProjectId = new ObjectId(newProjectId);
@@ -356,18 +366,38 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
         "Unauthorized to Add Task to selected Project",
         "Update Single Task Error"
       );
-
-    // if (!projectIds.includes(mongoProjectId)) {
-    // throw new AppError(
-    //   401,
-    //   "Unauthorized to Add Task to selected Project",
-    //   "Update Single Task Error"
-    // );
-    // }
   }
 
-  // If project, check assignee assign authorization
+  // // Check assignee authorization
+  // if (!previousProjectId && !newProjectId && newAssigneeId) {
+  //   if (newAssigneeId !== currentUserId)
+  //     throw new AppError(
+  //       401,
+  //       "Unauthorized to Assign current Task to targeted Assignee",
+  //       "Update Single Task Error"
+  //     );
+  // }
+  // check assignee assign authorization
+  if (newAssigneeId) {
+    let taskProjectId = newProjectId ? newProjectId : previousProjectId;
+    let isProjectAllowed = false;
 
+    if (taskProjectId) {
+      projectIds.forEach((projectId) => {
+        if (projectId.equals(taskProjectId)) {
+          isProjectAllowed = true;
+        }
+      });
+    }
+    if (newAssigneeId !== currentUserId) {
+      if (!taskProjectId || !isProjectAllowed)
+        throw new AppError(
+          401,
+          "Unauthorized to set Assignee for this Task",
+          "Update Single Task Error"
+        );
+    }
+  }
   // Process
 
   const allows = [
@@ -384,7 +414,17 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
 
   allows.forEach((field) => {
     if (req.body[field] !== undefined) {
-      task[field] = req.body[field];
+      if (field === "assigneeId") {
+        if (req.body[field] === null && !task.project) {
+          task.assignee = currentUserId;
+        } else {
+          task.assignee = req.body[field];
+        }
+      } else if (field === "projectId") {
+        task.project = req.body[field];
+      } else {
+        task[field] = req.body[field];
+      }
     }
   });
 
@@ -419,8 +459,8 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
     _id: taskId,
     isDeleted: false,
     $or: [
-      { projectId: null, createdBy: currentUserId, assigneeId: currentUserId }, //personal task without project
-      { projectId: { $in: projectIds } }, //tasks within projects that current user is owner or manager
+      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+      { project: { $in: projectIds } }, //tasks within projects that current user is owner or manager
     ],
   });
 
@@ -434,8 +474,8 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   task.isDeleted = true; // soft delete task
   await task.save();
   await taskController.calculateUserTaskCount(currentUserId);
-  if (task.projectId) {
-    await taskController.calculateProjectTaskCount(task.projectId);
+  if (task.project) {
+    await taskController.calculateProjectTaskCount(task.project);
   }
   // Response
   return sendResponse(
@@ -445,6 +485,66 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
     task,
     null,
     "Delete Single Task successfully"
+  );
+});
+
+taskController.getCommentsOfTask = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const taskId = req.params.taskId;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+  // Business logic validation
+  // only allow to see tasks in projects that current user is in
+  const projects = await Project.find({
+    isDeleted: false,
+    projectMembers: currentUserId,
+  });
+
+  const projectIds = projects.map((project) => project._id);
+  // find task
+  const task = await Task.findOne({
+    _id: taskId,
+    isDeleted: false,
+    $or: [
+      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+      { project: { $in: projectIds } }, //tasks within projects that current user is in
+    ],
+  });
+
+  if (!task)
+    throw new AppError(
+      400,
+      "Task not found or unauthorized to view task",
+      "Get Comments of Task Error"
+    );
+
+  // Process
+  const count = await Comment.countDocuments({
+    targetType: "Task",
+    targetId: taskId,
+  });
+  const totalPages = Math.ceil(count / limit);
+  const offset = limit * (page - 1);
+
+  const comments = await Comment.find({
+    targetType: "Task",
+    targetId: taskId,
+  })
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .populate("author");
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    { comments, totalPages, count },
+    null,
+    "Get comments of Task successfully"
   );
 });
 
