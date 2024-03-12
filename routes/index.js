@@ -1,6 +1,10 @@
 var express = require("express");
 var router = express.Router();
 
+router.get("/", function (req, res, next) {
+  res.status(200).send("Welcome to Task Manager! Stay Effecttive!");
+});
+
 // authApi
 const authApi = require("./auth.api");
 router.use("/auth", authApi);
