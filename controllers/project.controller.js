@@ -4,6 +4,8 @@ const User = require("../models/User");
 const Invitation = require("../models/Invitation");
 const Task = require("../models/Task");
 const { createNewMongoInvitation } = require("./invitation.controller");
+const taskController = require("./task.controller");
+const Comment = require("../models/Comment");
 
 const projectController = {};
 
@@ -408,14 +410,57 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
       "Delete Single Project Error"
     );
   // Process
+
   project.isDeleted = true;
+  // calculate Project Own count for project Owner
   await project.save();
   await projectController.calculateProjectOwnCount(currentUserId);
 
+  // calculate Project In count for each members
   project.projectMembers.map(async (projectMember) => {
     await projectController.calculateProjectInCount(projectMember);
   });
-  // calculate Project In count for each members
+
+  // delete invitations from project
+  await Invitation.deleteMany({
+    project: projectId,
+  });
+
+  // delete tasks of project
+
+  // await Task.deleteMany({
+  //   project: projectId,
+  // });
+
+  // soft delete tasks
+  const tasks = await Task.find({
+    project: projectId,
+    isDeleted: false,
+  });
+
+  await Task.updateMany(
+    {
+      project: projectId,
+      isDeleted: false,
+    },
+    {
+      isDeleted: true,
+    }
+  );
+
+  console.log(tasks);
+  const taskIds = tasks.map((task) => task._id);
+  // Delete comments of the tasks within project
+  await Comment.deleteMany({
+    targetType: "Task",
+    targetId: { $in: taskIds },
+  });
+
+  // calculate count of task for each member
+  project.projectMembers.map(async (projectMember) => {
+    await taskController.calculateUserTaskCount(projectMember);
+  });
+
   // Response
   return sendResponse(
     res,
@@ -858,7 +903,8 @@ projectController.updateManagerRoleOfSingleMember = catchAsync(
       );
     }
     await project.save();
-    // console.log(project);
+
+    project = await Project.findById(projectId).populate("projectMembers");
     // Response
     return sendResponse(
       res,
