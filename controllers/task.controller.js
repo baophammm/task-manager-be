@@ -429,6 +429,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   });
 
   await task.save();
+  task = await Task.findById(taskId).populate(["project", "assignee"]);
   // Update task count of user and project
   // Response
   return sendResponse(

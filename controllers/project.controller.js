@@ -353,9 +353,10 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
     ? { $and: filterConditions }
     : {};
 
-  let project = await Project.findOne(filterCriteria).populate(
-    "projectMembers"
-  );
+  let project = await Project.findOne(filterCriteria).populate([
+    "projectOwner",
+    "projectMembers",
+  ]);
 
   if (!project)
     throw new AppError(
