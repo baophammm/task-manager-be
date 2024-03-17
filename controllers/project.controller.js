@@ -4,8 +4,10 @@ const User = require("../models/User");
 const Invitation = require("../models/Invitation");
 const Task = require("../models/Task");
 const { createNewMongoInvitation } = require("./invitation.controller");
+const { createNewMongoNotification } = require("./notification.controller");
 const taskController = require("./task.controller");
 const Comment = require("../models/Comment");
+const Notification = require("../models/Notification");
 
 const projectController = {};
 
@@ -75,6 +77,15 @@ projectController.createNewProject = catchAsync(async (req, res, next) => {
     const projectId = project._id;
     projectMembers.map(async (targetUserId) => {
       await createNewMongoInvitation(currentUserId, targetUserId, projectId);
+      await createNewMongoNotification({
+        title: "Project Invitation",
+        message: `${currentUser.firstName} ${currentUser.lastName} has invited you to join project ${title}`,
+        to: targetUserId,
+        sendTime: new Date(),
+        targetType: "project",
+        targetId: projectId,
+        type: "system",
+      });
     });
   }
 
@@ -146,13 +157,13 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
           case "currentUserRole":
             if (filter[field] === "Owner") {
               return { projectOwner: currentUserId };
-            } else if (filter[field] === "Manager") {
-              return { projectManagers: currentUserId };
+            } else if (filter[field] === "Lead") {
+              return { projectLeads: currentUserId };
             } else if (filter[field] === "Member") {
               return {
                 $and: [
                   { projectMembers: currentUserId },
-                  { projectManagers: { $ne: currentUserId } },
+                  { projectLeads: { $ne: currentUserId } },
                 ],
               };
             }
@@ -177,8 +188,6 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
   const filterCriteria = filterConditions.length
     ? { $and: filterConditions }
     : {};
-
-  console.log(filterCriteria);
 
   const count = await Project.countDocuments(filterCriteria);
   const totalPages = Math.ceil(count / limit);
@@ -358,6 +367,8 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
     "projectMembers",
   ]);
 
+  const projectOriginalTitle = project.title;
+
   if (!project)
     throw new AppError(
       400,
@@ -384,6 +395,23 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
   });
 
   await project.save();
+
+  // send notifications to project members
+  if (project.projectMembers) {
+    const currentUser = await User.findById(currentUserId);
+
+    project.projectMembers.map(async (projectMember) => {
+      await createNewMongoNotification({
+        title: "Project Updated",
+        message: `Project ${projectOriginalTitle} has recently been updated by ${currentUser.firstName} ${currentUser.lastName}`,
+        to: projectMember._id,
+        sendTime: new Date(),
+        targetType: "Project",
+        targetId: projectId,
+        type: "System",
+      });
+    });
+  }
   // Response
   return sendResponse(
     res,
@@ -401,6 +429,7 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   const projectId = req.params.projectId;
   // Business logic validation
   let project = await Project.findOne({ _id: projectId, isDeleted: false });
+
   if (!project)
     throw new AppError(400, "Project not found", "Delete Single Project Error");
 
@@ -449,7 +478,6 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
     }
   );
 
-  console.log(tasks);
   const taskIds = tasks.map((task) => task._id);
   // Delete comments of the tasks within project
   await Comment.deleteMany({
@@ -460,6 +488,20 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   // calculate count of task for each member
   project.projectMembers.map(async (projectMember) => {
     await taskController.calculateUserTaskCount(projectMember);
+  });
+
+  // send notification
+  const currentUser = await User.findById(currentUserId);
+  project.projectMembers.map(async (projectMember) => {
+    await createNewMongoNotification({
+      title: "Project deleted",
+      message: `${project.title} has been deleted by ${currentUser.firstName} ${currentUser.lastName}`,
+      to: projectMember,
+      sendTime: new Date(),
+      targetType: "Project",
+      targetId: projectId,
+      type: "System",
+    });
   });
 
   // Response
@@ -761,6 +803,15 @@ projectController.cancelSingleProjectInvitation = catchAsync(
     // Process
     await Invitation.findOneAndDelete(filterConditions);
 
+    // delete related notifications - don't need as project invitations are combined to 1 invitation
+    // await Notification.deleteMany({
+    //   title: "Project Invitation",
+    //   to: inviteeId,
+    //   targetType: "Invitation",
+    //   targetId: projectId,
+    //   type: "System",
+    // });
+
     // Response
     return sendResponse(
       res,
@@ -829,14 +880,41 @@ projectController.reactProjectInvitation = catchAsync(
       }
     });
 
+    const currentUser = await User.findById(currentUserId);
+
     // if new status === "accepted" => add new project member to projectMembers array
     if (invitation.status === "accepted") {
+      try {
+      } catch (error) {}
       project.projectMembers.push(currentUserId);
       await project.save();
       await projectController.calculateProjectInCount(currentUserId);
+      // send notification to sender
     }
 
     await invitation.save();
+
+    if (invitation.status === "accepted") {
+      await createNewMongoNotification({
+        title: "Project Invitation Accepted",
+        message: `${currentUser.firstName} ${currentUser.lastName} has joined project ${project.title}`,
+        to: invitation.from,
+        sendTime: new Date(),
+        targetType: "Project",
+        targetId: projectId,
+        type: "System",
+      });
+    } else if (invitation.status === "decline") {
+      await createNewMongoNotification({
+        title: "Project Invitation Declined",
+        message: `${currentUser.firstName} ${currentUser.lastName} has delinced to join project ${project.title}`,
+        to: invitation.from,
+        sendTime: new Date(),
+        targetType: "Project",
+        targetId: projectId,
+        type: "System",
+      });
+    }
 
     // Response
     return sendResponse(
@@ -850,12 +928,12 @@ projectController.reactProjectInvitation = catchAsync(
   }
 );
 
-projectController.updateManagerRoleOfSingleMember = catchAsync(
+projectController.updateLeadRoleOfSingleMember = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
     const { projectId, memberId } = req.params;
-    const { isNewManager } = req.body;
+    const { isNewLead } = req.body;
     // Business logic validation
     // check project accessibility
     let project = await Project.findOne({
@@ -868,7 +946,7 @@ projectController.updateManagerRoleOfSingleMember = catchAsync(
       throw new AppError(
         401,
         "Cannot Find Project or Unauthorized to See Project",
-        "Update Manager Role Of Single Member Error"
+        "Update Lead Role Of Single Member Error"
       );
 
     // Check if targeted member is in project
@@ -876,34 +954,48 @@ projectController.updateManagerRoleOfSingleMember = catchAsync(
       throw new AppError(
         400,
         "Targeted Member Not In Project",
-        "Update Manager Role Of Single Member Error"
+        "Update Lead Role Of Single Member Error"
       );
 
-    // check if targeted user already manager
-    isCurrentManager = project.projectManagers.includes(memberId);
+    // check if targeted user already Lead
+    isCurrentLead = project.projectLeads.includes(memberId);
 
-    if (isCurrentManager && isNewManager)
+    if (isCurrentLead && isNewLead)
       throw new AppError(
         400,
-        "Member is already a manager",
-        "Update Manager Role Of Single Member Error"
+        "Member is already a Lead",
+        "Update Lead Role Of Single Member Error"
       );
 
-    if (!isCurrentManager && !isNewManager)
+    if (!isCurrentLead && !isNewLead)
       throw new AppError(
         400,
-        "Member is already not a manager",
-        "Update Manager Role Of Single Member Error"
+        "Member is already not a Lead",
+        "Update Lead Role Of Single Member Error"
       );
     // Process
-    if (isNewManager) {
-      project.projectManagers.push(memberId);
-    } else if (!isNewManager) {
-      project.projectManagers = project.projectManagers.filter(
-        (manager) => !manager.equals(memberId)
+    if (isNewLead) {
+      project.projectLeads.push(memberId);
+    } else if (!isNewLead) {
+      project.projectLeads = project.projectLeads.filter(
+        (lead) => !lead.equals(memberId)
       );
     }
     await project.save();
+
+    // send notifications to target user
+
+    await createNewMongoNotification({
+      title: "Project Role Update",
+      message: `You have become ${
+        isNewLead ? "Lead" : "Normal Member"
+      } of project ${project.title}`,
+      to: memberId,
+      sendTime: new Date(),
+      targetType: "Project",
+      targetId: projectId,
+      type: "System",
+    });
 
     project = await Project.findById(projectId).populate("projectMembers");
     // Response
@@ -913,7 +1005,7 @@ projectController.updateManagerRoleOfSingleMember = catchAsync(
       true,
       project,
       null,
-      "Update Manager Role Of Single Member Error"
+      "Update Lead Role Of Single Member Error"
     );
   }
 );
@@ -947,9 +1039,9 @@ projectController.removeSingleMemberFromProject = catchAsync(
         "Remove Single Member From Project Error"
       );
     // Process
-    if (project.projectManagers.includes(memberId)) {
-      project.projectManagers = project.projectManagers.filter(
-        (manager) => !manager.equals(memberId)
+    if (project.projectLeads.includes(memberId)) {
+      project.projectLeads = project.projectLeads.filter(
+        (lead) => !lead.equals(memberId)
       );
     }
 
@@ -964,6 +1056,21 @@ projectController.removeSingleMemberFromProject = catchAsync(
     await Invitation.findOneAndDelete({
       project: projectId,
       to: memberId,
+    });
+
+    // create notification for user / projectOwner
+    const currentUser = await User.findById(currentUserId);
+    await createNewMongoNotification({
+      title: "Project Member Exit",
+      message:
+        memberId === currentUserId
+          ? `${currentUser.firstName} ${currentUser.lastName} has left project ${project.title}`
+          : `You are removed from project ${project.title}`,
+      to: memberId === currentUserId ? project.projectOwner : memberId,
+      sendTime: new Date(),
+      targetType: "Project",
+      targetId: projectId,
+      type: "System",
     });
 
     // Response

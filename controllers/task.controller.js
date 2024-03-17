@@ -3,6 +3,7 @@ const Task = require("../models/Task");
 const User = require("../models/User");
 const Project = require("../models/Project");
 const Comment = require("../models/Comment");
+const { createNewMongoNotification } = require("./notification.controller");
 const {
   Types: { ObjectId },
 } = require("mongoose");
@@ -49,16 +50,13 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   } = req.body;
 
   // Business logic validation
-  // if project, can only set if your are project owner or manager
+  // if project, can only set if your are project owner or Lead
 
   if (projectId) {
     let targetProject = await Project.findOne({
       _id: projectId,
       isDeleted: false,
-      $or: [
-        { projectOwner: currentUserId },
-        { projectManagers: currentUserId },
-      ],
+      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
     });
 
     if (!targetProject)
@@ -124,6 +122,24 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   if (projectId) {
     await taskController.calculateProjectTaskCount(projectId);
   }
+
+  // send notification
+  if (projectId) {
+    let project = await Project.findById(projectId);
+
+    if (assigneeId !== currentUserId) {
+      await createNewMongoNotification({
+        title: "New Task Assigned",
+        message: `Task ${title} has been assigned to you in project ${project.title}`,
+        to: assigneeId,
+        sendTime: new Date(),
+        targetType: "Task",
+        targetId: task._id,
+        type: "System",
+      });
+    }
+  }
+
   // Response
   return sendResponse(
     res,
@@ -278,6 +294,7 @@ taskController.getSingleTask = catchAsync(async (req, res, next) => {
       "Get Single Task Error"
     );
   // Process
+
   // Response
   return sendResponse(
     res,
@@ -295,12 +312,12 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   const taskId = req.params.taskId;
 
   // Business logic validation
-  // only allow to edit task that is personal or if I am project Owner or Manager.
+  // only allow to edit task that is personal or if I am project Owner or Lead.
   const projects = await Project.find({
     isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectManagers: currentUserId }],
+    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
   });
-  // project Ids that current user is the owner or manager
+  // project Ids that current user is the owner or Lead
   const projectIds = projects.map((project) => project._id);
 
   let task = await Task.findOne({
@@ -308,7 +325,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     isDeleted: false,
     $or: [
       { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is owner or manager
+      { project: { $in: projectIds } }, //tasks within projects that current user is owner or Lead
     ],
   });
 
@@ -319,6 +336,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       "Update Single Task Error"
     );
 
+  const taskOriginalTitle = task.title;
   if (req.body.startAt && req.body.dueAt) {
     if (req.body.dueAt < req.body.startAt)
       throw new AppError(
@@ -343,7 +361,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       );
   }
 
-  // If task not in project and add to new project => Check if new project in project Ids list of owner or manager
+  // If task not in project and add to new project => Check if new project in project Ids list of owner or Lead
 
   if (!previousProjectId && newProjectId) {
     // ERROR TO CHECK project id list cannot include newProjectId
@@ -430,7 +448,48 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
 
   await task.save();
   task = await Task.findById(taskId).populate(["project", "assignee"]);
+
   // Update task count of user and project
+  if (newProjectId) {
+    await taskController.calculateProjectTaskCount(newProjectId);
+    await taskController.calculateProjectTaskCount(previousProjectId);
+  }
+
+  if (newAssigneeId) {
+    await taskController.calculateUserTaskCount(newAssigneeId);
+    await taskController.calculateUserTaskCount(previousAssigneeId);
+  }
+
+  // send notification
+  const finalAssigneeId = newAssigneeId ? newAssigneeId : previousAssigneeId;
+  if (currentUserId !== finalAssigneeId) {
+    await createNewMongoNotification({
+      title: "Task Update",
+      message: newAssigneeId
+        ? `Task ${taskOriginalTitle} of project ${task.project.title} has been updated and assigned to you`
+        : `Task ${taskOriginalTitle} of project ${task.project.title} has been updated`,
+      to: finalAssigneeId,
+      sendTime: new Date(),
+      targetType: "Task",
+      targetId: taskId,
+      type: "System",
+    });
+  }
+
+  if (newAssigneeId) {
+    if (!previousAssigneeId.equals(currentUserId)) {
+      await createNewMongoNotification({
+        title: "Task Update",
+        message: `You are unassigned from task ${taskOriginalTitle} of project ${task.project.title}`,
+        to: previousAssigneeId,
+        sendTime: new Date(),
+        targetType: "Task",
+        targetId: taskId,
+        type: "System",
+      });
+    }
+  }
+
   // Response
   return sendResponse(
     res,
@@ -448,12 +507,12 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   const taskId = req.params.id;
 
   // Business logic validation
-  // only allow to delete task that is personal or if I am project Owner or Manager.
+  // only allow to delete task that is personal or if I am project Owner or Lead.
   const projects = await Project.find({
     isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectManagers: currentUserId }],
+    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
   });
-  // project Ids that current user is the owner or manager
+  // project Ids that current user is the owner or Lead
   const projectIds = projects.map((project) => project._id);
 
   let task = await Task.findOne({
@@ -461,7 +520,7 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
     isDeleted: false,
     $or: [
       { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is owner or manager
+      { project: { $in: projectIds } }, //tasks within projects that current user is owner or lead
     ],
   });
 
@@ -477,6 +536,20 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   await taskController.calculateUserTaskCount(currentUserId);
   if (task.project) {
     await taskController.calculateProjectTaskCount(task.project);
+  }
+
+  // send notification
+  task = await Task.findById(taskId).populate("project");
+  if (!task.assignee.equals(currentUserId)) {
+    await createNewMongoNotification({
+      title: "Task Deleted",
+      message: `Task ${task.title} of project ${task.project.title} has been deleted`,
+      to: task.assignee,
+      sendTime: new Date(),
+      targetType: "Project",
+      targetId: task.project._id,
+      type: "System",
+    });
   }
   // Response
   return sendResponse(

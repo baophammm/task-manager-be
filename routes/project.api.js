@@ -52,7 +52,7 @@ router.get(
     )
       .optional()
       .isString()
-      .isIn(["Owner", "Manager", "Member"]),
+      .isIn(["Owner", "Lead", "Member"]),
     query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
       .optional()
       .isString()
@@ -239,7 +239,7 @@ router.put(
 /**
  * @route PUT /projects/:projectId/projectMembers/:memberId
  * @description change role of a project member
- * @body { isNewManager: true or false }
+ * @body { isNewLead: true or false }
  * @access login required
  */
 router.put(
@@ -248,13 +248,13 @@ router.put(
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
     param("memberId").exists().isString().custom(validators.checkObjectId),
-    body("isNewManager", "Invalid isNewManager")
+    body("isNewLead", "Invalid isNewLead")
       .exists()
       .notEmpty()
       .isBoolean()
       .isIn([true, false]),
   ]),
-  projectController.updateManagerRoleOfSingleMember
+  projectController.updateLeadRoleOfSingleMember
 );
 
 /**

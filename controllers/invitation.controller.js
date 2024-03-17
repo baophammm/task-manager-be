@@ -4,6 +4,9 @@ const Project = require("../models/Project");
 const User = require("../models/User");
 const crypto = require("crypto");
 
+const { createNewMongoNotification } = require("./notification.controller");
+const Notification = require("../models/Notification");
+
 const invitationController = {};
 
 invitationController.createNewMongoInvitation = async (from, to, project) => {
@@ -11,6 +14,12 @@ invitationController.createNewMongoInvitation = async (from, to, project) => {
     const invitationCode = await crypto.randomBytes(20).toString("hex");
     // secret password (generate by project owner) + with invitation url to join project
     // encrypt the invitation - jwt, hash libraries, nodejs crypto, node21
+    let projectInvitationCount = await Invitation.countDocuments({
+      to,
+      status: "pending",
+      isExpired: false,
+    });
+
     let invitation = await Invitation.create({
       from,
       to,
@@ -18,6 +27,37 @@ invitationController.createNewMongoInvitation = async (from, to, project) => {
       invitationCode,
     });
 
+    // create notification on invitation sent
+
+    invitation = await Invitation.findById(invitation._id).populate([
+      "from",
+      "project",
+    ]);
+
+    await Notification.deleteMany({
+      title: "Project Invitation",
+      to,
+      targetType: "Invitation",
+      type: "System",
+    });
+
+    await createNewMongoNotification({
+      title: "Project Invitation",
+      // message: `You are invited to join project ${invitation.project.title} by ${invitation.from.firstName} ${invitation.from.lastName} `,
+      message: `You are invited to join project ${invitation.project.title}${
+        projectInvitationCount > 0
+          ? `, along with ${projectInvitationCount} other projects`
+          : ""
+      }`,
+      to: invitation.to,
+      sendTime: new Date(),
+      targetType: "Invitation",
+      targetId: invitation._id,
+      type: "System",
+    });
+
+    invitation.from = from;
+    invitation.project = project;
     return invitation;
   } catch (error) {
     throw new Error("Create New Mongo Invitation Error");

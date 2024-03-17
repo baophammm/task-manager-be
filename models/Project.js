@@ -11,7 +11,7 @@ const projectSchema = Schema(
       default: "Planning",
     },
     projectOwner: { type: Schema.Types.ObjectId, required: true, ref: "User" },
-    projectManagers: {
+    projectLeads: {
       type: [{ type: Schema.Types.ObjectId, ref: "User" }],
       default: [],
     },

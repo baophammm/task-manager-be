@@ -276,13 +276,13 @@ userController.getCurrentUserProjects = catchAsync(async (req, res, next) => {
           case "currentUserRole":
             if (filter[field] === "Owner") {
               return { projectOwner: currentUserId };
-            } else if (filter[field] === "Manager") {
-              return { projectManagers: currentUserId };
+            } else if (filter[field] === "Lead") {
+              return { projectLeads: currentUserId };
             } else if (filter[field] === "Member") {
               return {
                 $and: [
                   { projectMembers: currentUserId },
-                  { projectManagers: { $ne: currentUserId } },
+                  { projectLeads: { $ne: currentUserId } },
                 ],
               };
             }
@@ -459,13 +459,13 @@ userController.getUserFavoriteProjects = catchAsync(async (req, res, next) => {
           case "currentUserRole":
             if (filter[field] === "Owner") {
               return { projectOwner: currentUserId };
-            } else if (filter[field] === "Manager") {
-              return { projectManagers: currentUserId };
+            } else if (filter[field] === "Lead") {
+              return { projectLeads: currentUserId };
             } else if (filter[field] === "Member") {
               return {
                 $and: [
                   { projectMembers: currentUserId },
-                  { projectManagers: { $ne: currentUserId } },
+                  { projectLeads: { $ne: currentUserId } },
                 ],
               };
             }

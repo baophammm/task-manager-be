@@ -86,7 +86,7 @@ router.delete(
 /**
  * @route GET /users/me/projects
  * @description get a list of projects of current user
- * @query { search, currentUserRole: Owner or Manager or Member, projectStatus, startAfter, startBefore, dueAfter, dueBefore}
+ * @query { search, currentUserRole: Owner or Lead or Member, projectStatus, startAfter, startBefore, dueAfter, dueBefore}
  * @access login required
  */
 router.get(
@@ -99,7 +99,7 @@ router.get(
     )
       .optional()
       .isString()
-      .isIn(["Owner", "Manager", "Member"]),
+      .isIn(["Owner", "Lead", "Member"]),
     query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
       .optional()
       .isString()
@@ -154,7 +154,7 @@ router.get(
     )
       .optional()
       .isString()
-      .isIn(["Owner", "Manager", "Member"]),
+      .isIn(["Owner", "Lead", "Member"]),
     query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
       .optional()
       .isString()

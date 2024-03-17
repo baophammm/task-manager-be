@@ -4,6 +4,7 @@ const Comment = require("../models/Comment");
 const Task = require("../models/Task");
 const Project = require("../models/Project");
 const User = require("../models/User");
+const { createNewMongoNotification } = require("./notification.controller");
 
 const commentController = {};
 
@@ -23,7 +24,11 @@ commentController.createNewComment = catchAsync(async (req, res, next) => {
   const currentUserId = req.userId;
   const { content, targetType, targetId } = req.body;
 
+  // followers for sending notifications
+  let targetItemFollowerIds = [];
+
   // Business logic validation
+
   // check if authorized
 
   if (targetType === "Project") {
@@ -39,6 +44,9 @@ commentController.createNewComment = catchAsync(async (req, res, next) => {
         "Project not found or unauthorized to view project",
         "Create New Comment Error"
       );
+
+    // add project owner to follower list
+    targetItemFollowerIds.push(project.projectOwner.toString());
   }
 
   if (targetType === "Task") {
@@ -64,6 +72,9 @@ commentController.createNewComment = catchAsync(async (req, res, next) => {
         "Task not found or unauthorized to view task",
         "Create New Comment Error"
       );
+
+    // add assignee to follower list
+    targetItemFollowerIds.push(task.assignee.toString());
   }
   // Check targetType exists
   // const targetObj = await mongoose.model(targetType).findById(targetId);
@@ -86,6 +97,42 @@ commentController.createNewComment = catchAsync(async (req, res, next) => {
 
   await calculateCommentCount(targetType, targetId);
 
+  // send notification to followers
+  // get list of target Item commentators
+  const targetItemComments = await Comment.find({
+    targetType,
+    targetId,
+  });
+
+  targetItemComments.map((comment) => {
+    const authorId = comment.author.toString();
+    if (!targetItemFollowerIds.includes(authorId)) {
+      targetItemFollowerIds.push(authorId);
+    }
+  });
+
+  // targetItemFollowerIds = Array.from(uniqueFollowerIds);
+
+  console.log("Followers", targetItemFollowerIds);
+  const currentUser = await User.findById(currentUserId);
+  const targetObj = await mongoose.model(targetType).findById(targetId);
+
+  targetItemFollowerIds.map(async (followerId) => {
+    if (followerId !== currentUserId) {
+      // console.log(followerId);
+      // console.log(new mongoose.Types.ObjectId(followerId));
+      await createNewMongoNotification({
+        title: `New ${targetType} Comment`,
+        message: `${currentUser.firstName} ${currentUser.lastName} just commented on ${targetType} ${targetId.title}`,
+        // to: new mongoose.Types.ObjectId(followerId),
+        to: followerId,
+        sendTime: new Date(),
+        targetType,
+        targetId,
+        type: "System",
+      });
+    }
+  });
   // Response
   return sendResponse(
     res,
