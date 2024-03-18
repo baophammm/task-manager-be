@@ -85,14 +85,14 @@ router.delete(
 /**
  * @route DELETE /notifications
  * @description delete many notifications by filter
- * @body {isRead}
+ * @query {isRead}
  * @access login required
  */
 router.delete(
   "/",
   authentication.loginRequired,
   validators.validate([
-    body("isRead", "Invalid isRead")
+    query("isRead", "Invalid isRead")
       .optional({ nullable: true, values: "falsy" })
       .isBoolean(),
   ]),

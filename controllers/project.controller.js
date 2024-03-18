@@ -1122,7 +1122,6 @@ projectController.getTasksOfSingleProject = catchAsync(
     const allows = [
       "search",
       "taskStatus",
-      "priority",
       "assigneeId",
       "startAfter",
       "startBefore",

@@ -111,20 +111,15 @@ commentController.createNewComment = catchAsync(async (req, res, next) => {
     }
   });
 
-  // targetItemFollowerIds = Array.from(uniqueFollowerIds);
-
   console.log("Followers", targetItemFollowerIds);
   const currentUser = await User.findById(currentUserId);
   const targetObj = await mongoose.model(targetType).findById(targetId);
 
   targetItemFollowerIds.map(async (followerId) => {
     if (followerId !== currentUserId) {
-      // console.log(followerId);
-      // console.log(new mongoose.Types.ObjectId(followerId));
       await createNewMongoNotification({
         title: `New ${targetType} Comment`,
         message: `${currentUser.firstName} ${currentUser.lastName} just commented on ${targetType} ${targetId.title}`,
-        // to: new mongoose.Types.ObjectId(followerId),
         to: followerId,
         sendTime: new Date(),
         targetType,

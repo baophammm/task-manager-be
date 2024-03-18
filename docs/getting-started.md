@@ -34,9 +34,9 @@ For task management, user can create tasks for themselves. Project owners and ma
 
 <!-- All team members can view other members' tasks and projects. They can leave comments on other members' tasks and projects -->
 
-For notification, when there is an update in task, incoming deadlines, users can receive email and/or in app notifications. When there is a newly created task, the assigned employee will receive the notification.
+For notification, when there is an update in task, incoming deadlines, users can receive in app notifications. When there is a newly created task, the assigned employee will receive the notification.
 
-For reminders, users can create task reminders with message and time to send to themselves.
+<!-- For reminders, users can create task reminders with message and time to send to themselves. -->
 
 ## User Stories
 
