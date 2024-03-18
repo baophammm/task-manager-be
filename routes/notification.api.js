@@ -83,6 +83,23 @@ router.delete(
 );
 
 /**
+ * @route DELETE /notifications
+ * @description delete many notifications by filter
+ * @body {isRead}
+ * @access login required
+ */
+router.delete(
+  "/",
+  authentication.loginRequired,
+  validators.validate([
+    body("isRead", "Invalid isRead")
+      .optional({ nullable: true, values: "falsy" })
+      .isBoolean(),
+  ]),
+  notificationController.deleteManyNotifications
+);
+
+/**
  * @route POST /notifications/reminders
  * @description create a reminder notification for current user
  * @body { title, message, targetType, targetId, sendTime}

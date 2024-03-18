@@ -62,34 +62,31 @@ For reminders, users can create task reminders with message and time to send to 
 - [ ] As a user, I can view all the projects that I own or I am a member of.
 
 - [ ] As a project owner, I can update the projects that I own.
-- [ ] As a project owner, I can set project members to become project managers.
+- [ ] As a project owner, I can set project members to become project leaders.
 
 - [ ] As a project owner, I can delete the projects that I own.
 
 ### Invitation
 
 - [ ] As a project owner, I can create an invitation to other user to become project members of my project.
-- [ ] As a project owner, I can see a list of my invitations
-- [ ] As a project owner, I can update my invitations
-- [ ] As a project owner, I can delete my invitations
+- [ ] As a project owner, I can see a list of my invitations in my projects
+- [ ] As a project owner, I can cancel my invitations
 
-- [ ] As the invitee, I can receive invitation by email and/or in app to join the project owner's project as project members.
+- [ ] As the invitee, I can receive invitation in app to join the project owner's project as project members.
 
 ### Task
 
 - [ ] As a user, I can create a task with title, description, assignee, project, startAt, dueAt and files.
+- [ ] As a user, I can delete non-project tasks that I created.
+- [ ] As a user, I can view all of my tasks in one place.
+
 - [ ] As a project owner or project manager, I can create tasks within the project.
 
-- [ ] As a user, I can view all of my tasks in one place.
-- [ ] As a user, I can view all the tasks of other members of the projects which I own or I am in.
+- [ ] As a user, I can view all the tasks of other members of the projects which I am in.
 
 - [ ] As a user, I can edit the tasks that I created.
 - [ ] As a project owner or project manager, I can edit tasks within the project.
-- [ ] As a normal project member, I can only request taskStatus update that I am assigned with.
-
-- [ ] As a project owner, I can approve members' task update requests.
-
-- [ ] As a user, I can delete the tasks that I created.
+- [ ] As a normal project member, I can only view the project tasks.
 
 ### Comment
 
@@ -108,19 +105,16 @@ For reminders, users can create task reminders with message and time to send to 
   - [ ] As a user, I can receive notification when a task or project I follow is updated by others.
   - [ ] As a user, I can receive notification when there is a new comment on task and project I am following.
 
-  - [ ] As a project owner, I can receive notification when a task in my project has been requested "Completed" => I can approve => send notification to assignee
-  - [ ] As a project member, I can receive notification when project owner marked task as reviewed => Read review
-  - [ ] As a user, I can receive notifications when there is a due date coming soon
+  <!-- - [ ] As a project owner, I can receive notification when a task in my project has been requested "Completed" => I can approve => send notification to assignee -->
+  <!-- - [ ] As a project member, I can receive notification when project owner marked task as reviewed => Read review -->
 
-  - [ ] As a user, I can receive a weekly report of my current tasks.
-  - [ ] As a project owner, I can receive a weekly report of my project's members' tasks.
+  - [ ] As a user, I can receive notifications when there is a due date coming soon
 
 - [ ] As a user, I can get a list of notifications and reminders sent to me with pagination and filters.
 - [ ] As a user, I can get information of a specific notification or reminder.
-
+<!--
 - [ ] As a user, I can update the reminders that I created.
-
-- [ ] As a user, I can delete the reminders that I created.
+- [ ] As a user, I can delete the reminders that I created. -->
 
 ## Endpoint APIs
 

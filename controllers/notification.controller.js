@@ -84,6 +84,13 @@ notificationController.getNotifications = catchAsync(async (req, res, next) => {
     : {};
 
   const count = await Notification.countDocuments(filterCriteria);
+  // const countUnread = await Notification.countDocuments({
+  //   $and: filterConditions.push({ unRead: false }),
+  // });
+  countUnread = await Notification.countDocuments({
+    to: currentUserId,
+    isRead: false,
+  });
   const totalPages = Math.ceil(count / limit);
   const offset = limit * (page - 1);
 
@@ -97,7 +104,7 @@ notificationController.getNotifications = catchAsync(async (req, res, next) => {
     res,
     200,
     true,
-    { notifications, totalPages, count },
+    { notifications, totalPages, count, countUnread },
     null,
     "Get List of Notifications successfully"
   );
@@ -218,6 +225,45 @@ notificationController.deleteSingleNotification = catchAsync(
       notification,
       null,
       "Delete Single Notification successfully"
+    );
+  }
+);
+
+notificationController.deleteManyNotifications = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    let { isRead, page, limit } = req.query;
+
+    console.log("CHECKING BODY to BE", isRead, page, limit);
+    // Business logic validation
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 10;
+    // Process
+    let deletedNotifications = await Notification.deleteMany({
+      to: currentUserId,
+      isRead,
+    });
+
+    const count = await Notification.countDocuments({ to: currentUserId });
+    const totalPages = Math.ceil(count / limit);
+    const offset = limit * (page - 1);
+    const notifications = await Notification.find({
+      to: currentUserId,
+    })
+      .sort({ sendTime: -1 })
+      .skip(offset)
+      .limit(limit);
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      // deletedNotifications,
+      { notifications, totalPages, count },
+      null,
+      "Delete Multiple Notifications successfully"
     );
   }
 );
