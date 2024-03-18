@@ -7,6 +7,7 @@ const { createNewMongoNotification } = require("./notification.controller");
 const {
   Types: { ObjectId },
 } = require("mongoose");
+const Notification = require("../models/Notification");
 
 const taskController = {};
 
@@ -42,7 +43,6 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     title,
     description,
     taskStatus,
-    priority,
     projectId,
     assigneeId,
     startAt,
@@ -86,6 +86,25 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
           "Create New Task Error"
         );
     }
+
+    // if task and project have start and due date, limit task time period within project's time period
+    if (dueAt && targetProject.dueAt) {
+      if (new Date(dueAt) > new Date(targetProject.dueAt))
+        throw new AppError(
+          400,
+          "Task Due date cannot be after Project Due date",
+          "Create New Task Error"
+        );
+    }
+
+    if (startAt && targetProject.startAt) {
+      if (new Date(startAt) < new Date(targetProject.startAt))
+        throw new AppError(
+          400,
+          "Task Start date cannot be before Project Start date",
+          "Create New Task Error"
+        );
+    }
   }
 
   if (!projectId && assigneeId)
@@ -110,7 +129,6 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     title,
     description,
     taskStatus,
-    priority,
     project: projectId,
     assignee: assigneeId,
     startAt,
@@ -122,6 +140,8 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   if (projectId) {
     await taskController.calculateProjectTaskCount(projectId);
   }
+
+  task = await Task.findById(task._id).populate(["project", "assignee"]);
 
   // send notification
   if (projectId) {
@@ -155,7 +175,6 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
   let { page, limit, ...filter } = { ...req.query };
-  console.log(currentUserId);
   // Business logic validation
   page = parseInt(page) || 1;
   limit = parseInt(limit) || 10;
@@ -164,7 +183,6 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   const allows = [
     "search",
     "taskStatus",
-    "priority",
     "assigneeId",
     "projectId",
     "startAfter",
@@ -336,7 +354,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       "Update Single Task Error"
     );
 
-  const taskOriginalTitle = task.title;
+  const taskOriginalTitle = task ? task.title : null;
   if (req.body.startAt && req.body.dueAt) {
     if (req.body.dueAt < req.body.startAt)
       throw new AppError(
@@ -348,8 +366,13 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
 
   const previousAssigneeId = task.assignee;
   const previousProjectId = task.project;
+  const previousStartAt = task.startAt;
+  const previousDueAt = task.dueAt;
+
   const newAssigneeId = req.body.assigneeId;
   const newProjectId = req.body.projectId;
+  const newStartAt = req.body.startAt || null;
+  const newDueAt = req.body.dueAt || null;
 
   // If task already in project, cannot change project id
   if (previousProjectId && newProjectId) {
@@ -364,13 +387,6 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   // If task not in project and add to new project => Check if new project in project Ids list of owner or Lead
 
   if (!previousProjectId && newProjectId) {
-    // ERROR TO CHECK project id list cannot include newProjectId
-    // const mongoProjectId = new ObjectId(newProjectId);
-    // console.log("PROJECT ID LIST TO CHECK", projectIds);
-    // console.log("NEW PROJECT ID", mongoProjectId);
-    // console.log("CHECK IF equals", projectIds[0].equals(newProjectId));
-    // console.log("CHECK IF INCLUDES", projectIds.includes(newProjectId));
-
     let isProjectAllowed = false;
     projectIds.forEach((projectId) => {
       if (projectId.equals(newProjectId)) {
@@ -416,6 +432,50 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
         );
     }
   }
+
+  // check start date and due date of task vs project
+  let finalProjectId =
+    newProjectId && !previousProjectId
+      ? newProjectId
+      : previousProjectId
+      ? previousProjectId
+      : null;
+
+  let finalStartAt = newStartAt
+    ? newStartAt
+    : previousStartAt
+    ? previousStartAt
+    : null;
+
+  let finalDueAt = newDueAt ? newDueAt : previousDueAt ? previousDueAt : null;
+
+  let project;
+  if (finalProjectId) {
+    project = await Project.findOne({
+      _id: finalProjectId,
+      isDeleted: false,
+    });
+  }
+
+  if (finalDueAt && project && project.dueAt) {
+    if (new Date(finalDueAt) > new Date(project.dueAt)) {
+      throw new AppError(
+        400,
+        "Task Due date cannot be after Project Due date",
+        "Update Single Task Error"
+      );
+    }
+  }
+  if (finalStartAt && project && project.startAt) {
+    if (new Date(finalStartAt) < new Date(project.startAt)) {
+      throw new AppError(
+        400,
+        "Task Start date cannot be before Project Start date",
+        "Update Single Task Error"
+      );
+    }
+  }
+
   // Process
 
   const allows = [
@@ -424,7 +484,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     "assigneeId",
     "projectId",
     "taskStatus",
-    "priority",
+
     "startAt",
     "dueAt",
     "files",
@@ -450,9 +510,8 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   task = await Task.findById(taskId).populate(["project", "assignee"]);
 
   // Update task count of user and project
-  if (newProjectId) {
+  if (newProjectId && !previousProjectId) {
     await taskController.calculateProjectTaskCount(newProjectId);
-    await taskController.calculateProjectTaskCount(previousProjectId);
   }
 
   if (newAssigneeId) {
@@ -461,8 +520,10 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   }
 
   // send notification
+
   const finalAssigneeId = newAssigneeId ? newAssigneeId : previousAssigneeId;
-  if (currentUserId !== finalAssigneeId) {
+
+  if (finalAssigneeId.toString() !== currentUserId) {
     await createNewMongoNotification({
       title: "Task Update",
       message: newAssigneeId
@@ -539,18 +600,41 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   }
 
   // send notification
-  task = await Task.findById(taskId).populate("project");
-  if (!task.assignee.equals(currentUserId)) {
-    await createNewMongoNotification({
-      title: "Task Deleted",
-      message: `Task ${task.title} of project ${task.project.title} has been deleted`,
-      to: task.assignee,
-      sendTime: new Date(),
-      targetType: "Project",
-      targetId: task.project._id,
-      type: "System",
+  if (task.project) {
+    task = await Task.findById(taskId).populate("project");
+    if (!task.assignee.equals(currentUserId)) {
+      await createNewMongoNotification({
+        title: "Task Deleted",
+        message: `Task ${task.title} of project ${task.project.title} has been deleted`,
+        to: task.assignee,
+        sendTime: new Date(),
+        targetType: "Project",
+        targetId: task.project._id,
+        type: "System",
+      });
+    }
+    // change previous notifications related to task to Project
+    const projectId = task.project._id;
+    await Notification.deleteMany({
+      targetType: "Task",
+      targetId: taskId,
+      isRead: true,
     });
+
+    let notifications = await Notification.updateMany(
+      {
+        targetType: "Task",
+        targetId: taskId,
+        isRead: false,
+      },
+      {
+        message: "Task has been recently deleted",
+        targetType: "Project",
+        targetId: projectId,
+      }
+    );
   }
+
   // Response
   return sendResponse(
     res,

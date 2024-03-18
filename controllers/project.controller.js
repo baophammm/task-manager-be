@@ -45,7 +45,6 @@ projectController.createNewProject = catchAsync(async (req, res, next) => {
 
   // Business logic validation
   const currentUser = await User.findById(currentUserId);
-  const currentUserEmail = currentUser.email;
 
   if (projectMembers) {
     // cannot send invitation to self
@@ -53,6 +52,15 @@ projectController.createNewProject = catchAsync(async (req, res, next) => {
       throw new AppError(
         400,
         "Users cannot send invitation to themselves",
+        "Create New Project Error"
+      );
+  }
+
+  if (req.body.startAt && req.body.dueAt) {
+    if (req.body.dueAt < req.body.startAt)
+      throw new AppError(
+        400,
+        "Due date cannot be before start date",
         "Create New Project Error"
       );
   }
@@ -367,14 +375,14 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
     "projectMembers",
   ]);
 
-  const projectOriginalTitle = project.title;
-
   if (!project)
     throw new AppError(
       400,
       "Project not found or Unauthorized to edit project",
       "Update Single Project Error"
     );
+
+  const projectOriginalTitle = project ? project.title : null;
 
   if (req.body.startAt && req.body.dueAt) {
     if (req.body.dueAt < req.body.startAt)

@@ -275,14 +275,14 @@ router.delete(
 /**
  * @route POST /projects/:projectId/tasks
  * @description Create New Project Task
- * @body {title, description, taskStatus, taskPriority, assigneeId, startAt, dueAt, files}
+ * @body {title, description, taskStatus,  assigneeId, startAt, dueAt, files}
  * @access login required
  */
 
 /**
  * @route GET /projects/:projectId/tasks
  * @description get a list of tasks of a project with pagination
- * @query {search, taskStatus, priority, assigneeId, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, taskStatus, assigneeId, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
 router.get(
@@ -294,10 +294,6 @@ router.get(
       .optional()
       .isString()
       .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
-    query("priority", "Invalid priority. Reminder: Case sensitivity")
-      .optional()
-      .isString()
-      .isIn(["Critical", "High", "Medium", "Low"]),
     query("assigneeId")
       .optional({ nullable: true, values: "falsy" })
       .isString()
@@ -321,7 +317,7 @@ router.get(
 /**
  * @route GET /projects/:projectId/projectMembers/:memberId/tasks
  * @description get list of tasks of a project member within a project
- * @query {search, taskStatus, priority, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, taskStatus, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
 
@@ -334,7 +330,7 @@ router.get(
 /**
  * @route PUT /projects/:projectId/tasks/:taskId
  * @description update a single project task
- * @body { title, description, assigneeId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", priority: "Critical" or "High" or "Medium" or "Low", startAt, dueAt, files }
+ * @body { title, description, assigneeId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
  * @access login required
  */
 

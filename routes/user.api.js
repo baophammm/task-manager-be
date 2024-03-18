@@ -199,7 +199,7 @@ router.delete(
 /**
  * @route GET /users/me/tasks
  * @description get a list of tasks of current user
- * @query {search, taskStatus, priority, projectId, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, taskStatus,  projectId, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
 router.get(
@@ -210,10 +210,6 @@ router.get(
       .optional()
       .isString()
       .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
-    query("priority", "Invalid priority. Reminder: Case sensitivity")
-      .optional()
-      .isString()
-      .isIn(["Critical", "High", "Medium", "Low"]),
 
     query("projectId")
       .optional({ nullable: true, values: "falsy" })

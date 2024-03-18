@@ -590,7 +590,6 @@ userController.getCurrentUserTasks = catchAsync(async (req, res, next) => {
   const allows = [
     "search",
     "taskStatus",
-    "priority",
     "projectId",
     "startAfter",
     "startBefore",

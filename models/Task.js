@@ -10,11 +10,6 @@ const taskSchema = Schema(
       enum: ["Backlog", "InProgress", "Completed", "Archived"],
       default: "Backlog",
     },
-    priority: {
-      type: String,
-      enum: ["Critical", "High", "Medium", "Low"],
-      default: "High",
-    },
 
     project: { type: Schema.Types.ObjectId, default: null, ref: "Project" },
     assignee: { type: Schema.Types.ObjectId, default: null, ref: "User" },

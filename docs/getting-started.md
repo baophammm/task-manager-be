@@ -338,7 +338,7 @@ For reminders, users can create task reminders with message and time to send to 
 /**
  * @route PUT /tasks/:id
  * @description edit fields of tasks
- * @body { title, description, assignee, project, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", priority: "Critical" or "High" or "Medium" or "Low", startAt, dueAt, files }
+ * @body { title, description, assignee, project, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
  * @access login required - project owner, project manager for projects, normal project member can only update taskStatus. Any user can edit personal tasks.
  */
 ```
