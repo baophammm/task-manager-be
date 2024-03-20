@@ -13,6 +13,10 @@ router.use("/auth", authApi);
 const userApi = require("./user.api");
 router.use("/users", userApi);
 
+// verificationApi
+const verificationApi = require("./verification.api");
+router.use("/verifications", verificationApi);
+
 // invitationApi
 const invitationApi = require("./invitation.api");
 router.use("/invitations", invitationApi);

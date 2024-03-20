@@ -4,6 +4,10 @@ const Project = require("../models/Project");
 const Task = require("../models/Task");
 const bcrypt = require("bcryptjs");
 const Invitation = require("../models/Invitation");
+const Verification = require("../models/Verification");
+
+const { createNewUserVerification } = require("./verification.controller");
+// const verificationController = require("./verification.controller");
 
 const userController = {};
 userController.register = catchAsync(async (req, res, next) => {
@@ -39,14 +43,17 @@ userController.register = catchAsync(async (req, res, next) => {
     user = await User.create({ firstName, lastName, email, password });
   }
 
-  const accessToken = await user.generateToken();
+  // const accessToken = await user.generateToken();
+  // testing createNewUserVerification
+
+  await createNewUserVerification(user._id, email);
 
   // Response
   return sendResponse(
     res,
     200,
     true,
-    { user, accessToken },
+    { user },
     null,
     "Created User successfully"
   );
@@ -209,6 +216,7 @@ userController.deleteUser = catchAsync(async (req, res, next) => {
   // Process
   // Soft Delete a user
   user.isDeleted = true;
+  user.active = false;
   await user.save();
 
   // Remove user from all projects and tasks

@@ -21,6 +21,7 @@ const userSchema = Schema(
       default: [],
       ref: "Project",
     },
+    active: { type: Boolean, default: false, select: false },
   },
   {
     timestamps: true,
@@ -31,6 +32,7 @@ userSchema.methods.toJSON = function () {
   const user = this._doc;
   delete user.password;
   delete user.isDeleted;
+  delete user.active;
   return user;
 };
 

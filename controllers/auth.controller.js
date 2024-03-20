@@ -9,8 +9,16 @@ authController.loginWithEmail = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
 
   // Business logic validation
-  const user = await User.findOne({ email, isDeleted: false }, "+password");
-  if (!user) throw new AppError(400, "Invalid Credentials", "Login Error");
+  const user = await User.findOne(
+    { email, active: true, isDeleted: false },
+    "+password"
+  );
+  if (!user)
+    throw new AppError(
+      400,
+      "Invalid Credentials or User not yet verified",
+      "Login Error"
+    );
 
   // Process
   const isMatch = await bcrypt.compare(password, user.password);
