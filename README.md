@@ -70,7 +70,7 @@ https://task-manager-be-zi2w.onrender.com/api
 /**
  * @route PUT /users/:id
  * @description Update user profile
- * @body {firstName, lastName, password}
+ * @body {firstName, lastName, profilePictureUrl}
  * @access login required
  */
 ```
