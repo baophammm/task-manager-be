@@ -409,15 +409,17 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
     const currentUser = await User.findById(currentUserId);
 
     project.projectMembers.map(async (projectMember) => {
-      await createNewMongoNotification({
-        title: "Project Updated",
-        message: `Project ${projectOriginalTitle} has recently been updated by ${currentUser.firstName} ${currentUser.lastName}`,
-        to: projectMember._id,
-        sendTime: new Date(),
-        targetType: "Project",
-        targetId: projectId,
-        type: "System",
-      });
+      if (!projectMember._id.equals(currentUserId)) {
+        await createNewMongoNotification({
+          title: "Project Updated",
+          message: `Project ${projectOriginalTitle} has recently been updated by ${currentUser.firstName} ${currentUser.lastName}`,
+          to: projectMember._id,
+          sendTime: new Date(),
+          targetType: "Project",
+          targetId: projectId,
+          type: "System",
+        });
+      }
     });
   }
   // Response
