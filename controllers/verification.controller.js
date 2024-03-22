@@ -31,6 +31,10 @@ verificationController.createNewUserVerification = async (
   userEmail
 ) => {
   try {
+    await Verification.deleteMany({
+      user: userId,
+    });
+
     const verificationCode = crypto.randomBytes(20).toString("hex");
 
     let verification = await Verification.create({

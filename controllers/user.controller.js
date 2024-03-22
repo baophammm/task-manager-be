@@ -16,9 +16,9 @@ userController.register = catchAsync(async (req, res, next) => {
 
   // Business logic Validation
   // Check if user already in DB
-  let user = await User.findOne({ email }, "+isDeleted");
+  let user = await User.findOne({ email }, "+isDeleted +active");
 
-  if (user && !user.isDeleted)
+  if (user && user.active && !user.isDeleted)
     throw new AppError(400, "User already exists", "User Registration Error");
 
   // Process
