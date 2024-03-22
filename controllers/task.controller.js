@@ -565,7 +565,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
 taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const taskId = req.params.id;
+  const taskId = req.params.taskId;
 
   // Business logic validation
   // only allow to delete task that is personal or if I am project Owner or Lead.

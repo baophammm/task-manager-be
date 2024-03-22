@@ -89,36 +89,36 @@ router.delete(
  * @query { search, currentUserRole: Owner or Lead or Member, projectStatus, startAfter, startBefore, dueAfter, dueBefore}
  * @access login required
  */
-router.get(
-  "/me/projects",
-  authentication.loginRequired,
-  validators.validate([
-    query(
-      "currentUserRole",
-      "Invalid currentUserRole. Reminder: Case sensitivity"
-    )
-      .optional()
-      .isString()
-      .isIn(["Owner", "Lead", "Member"]),
-    query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
-      .optional()
-      .isString()
-      .isIn(["Planning", "Ongoing", "Done"]),
-    query("startAfter", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("startBefore", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("dueAfter", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("dueBefore", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-  ]),
-  userController.getCurrentUserProjects
-);
+// router.get(
+//   "/me/projects",
+//   authentication.loginRequired,
+//   validators.validate([
+//     query(
+//       "currentUserRole",
+//       "Invalid currentUserRole. Reminder: Case sensitivity"
+//     )
+//       .optional()
+//       .isString()
+//       .isIn(["Owner", "Lead", "Member"]),
+//     query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
+//       .optional()
+//       .isString()
+//       .isIn(["Planning", "Ongoing", "Done"]),
+//     query("startAfter", "Invalid Date Format")
+//       .optional({ nullable: true, values: "falsy" })
+//       .isDate(),
+//     query("startBefore", "Invalid Date Format")
+//       .optional({ nullable: true, values: "falsy" })
+//       .isDate(),
+//     query("dueAfter", "Invalid Date Format")
+//       .optional({ nullable: true, values: "falsy" })
+//       .isDate(),
+//     query("dueBefore", "Invalid Date Format")
+//       .optional({ nullable: true, values: "falsy" })
+//       .isDate(),
+//   ]),
+//   userController.getCurrentUserProjects
+// );
 
 /**
  * @route POST /users/:id/favorite/projects
@@ -196,40 +196,6 @@ router.delete(
  * @access login required
  */
 
-/**
- * @route GET /users/me/tasks
- * @description get a list of tasks of current user
- * @query {search, taskStatus,  projectId, startBefore, startAfter, dueBefore, dueAfter}
- * @access login required
- */
-router.get(
-  "/me/tasks",
-  authentication.loginRequired,
-  validators.validate([
-    query("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
-      .optional()
-      .isString()
-      .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
-
-    query("projectId")
-      .optional({ nullable: true, values: "falsy" })
-      .isString()
-      .custom(validators.checkObjectId),
-    query("startAfter", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("startBefore", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("dueAfter", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    query("dueBefore", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-  ]),
-  userController.getCurrentUserTasks
-);
 /**
  * @route GET /users/me/invitations
  * @description get a list of my sent invitations

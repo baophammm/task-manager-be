@@ -132,10 +132,10 @@ router.put(
  * @access login required - same as edit task
  */
 router.delete(
-  "/:id",
+  "/:taskId",
   authentication.loginRequired,
   validators.validate([
-    param("id").exists().isString().custom(validators.checkObjectId),
+    param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),
   taskController.deleteSingleTask
 );
@@ -153,17 +153,5 @@ router.get(
   ]),
   taskController.getCommentsOfTask
 );
-
-/**
- * @route GET /tasks/:id/notifications
- * @description get a list of notification of a tasks with pagination
- * @access login required
- */
-
-/**
- * @route GET /tasks/:id/notifications/:id
- * @description get info of a notification with notification Id
- * @access login required
- */
 
 module.exports = router;
