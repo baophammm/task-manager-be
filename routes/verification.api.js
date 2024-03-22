@@ -8,7 +8,7 @@ const router = express.Router();
 /**
  * @route PUT /verifications/:verificationCode
  * @description verifying a user through verification Code
- * @access Public?
+ * @access Public
  */
 router.put(
   "/:verificationCode",

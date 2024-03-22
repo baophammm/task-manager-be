@@ -21,6 +21,16 @@ https://task-manager-be-zi2w.onrender.com/api
  */
 ```
 
+### Verification API
+
+```javascript
+/**
+ * @route PUT /verifications/:verificationCode
+ * @description verifying a user through verification Code
+ * @access Public
+ */
+```
+
 ### User APIs
 
 ```javascript
