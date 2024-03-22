@@ -115,7 +115,7 @@ https://task-manager-be-zi2w.onrender.com/api
 /**
  * @route POST /projects
  * @description Create a project
- * @body {title, description, projectStatus, startAt, dueAt, projectMembers}
+ * @body {title, description, projectStatus: "Planning" or "Ongoing" or "Done", startAt, dueAt, projectMembers}
  * @access login required
  */
 ```
@@ -133,15 +133,6 @@ https://task-manager-be-zi2w.onrender.com/api
 /**
  * @route GET /projects/:projectId
  * @description get detail of a project
- * @access login required
- */
-```
-
-```javascript
-/**
- * @route GET /projects/:projectId/projectMembers
- * @description Get list of project members of a project
- * @query {search}
  * @access login required
  */
 ```
@@ -202,6 +193,15 @@ https://task-manager-be-zi2w.onrender.com/api
  * @route PUT /projects/:projectId/invitations/:inviteeId
  * @description React to an invitation
  * @body { status: "accepted" or "declined" }
+ * @access login required
+ */
+```
+
+```javascript
+/**
+ * @route GET /projects/:projectId/projectMembers
+ * @description Get list of project members of a project
+ * @query {search}
  * @access login required
  */
 ```
@@ -292,7 +292,7 @@ https://task-manager-be-zi2w.onrender.com/api
 /**
  * @route POST /comments
  * @description Create a comment
- * @body { targetType: "Task" or "Project", targetId, content, files } // files only allow if targetType is Task
+ * @body { targetType: "Task" or "Project", targetId, content }
  * @access login required
  */
 ```
@@ -301,7 +301,7 @@ https://task-manager-be-zi2w.onrender.com/api
 /**
  * @route PUT /comments/:commentId
  * @description Edit comment content
- * @body { content, files }
+ * @body { content }
  * @access login required
  */
 ```
