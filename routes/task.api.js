@@ -8,7 +8,7 @@ const router = express.Router();
 /**
  * @route POST /tasks
  * @description create a task
- * @body {title, description, taskStatus, assigneeId, projectId, startAt, dueAt}
+ * @body {title, description, effort, taskStatus, assigneeId, projectId, startAt, dueAt}
  * @access login required - project owner, project Lead for projects. Any user can create task for personal tasks.
  */
 router.post(
@@ -16,11 +16,15 @@ router.post(
   authentication.loginRequired,
   validators.validate([
     body("title", "Invalid Title").exists().notEmpty(),
+    body("effort", "Invalid Effort")
+      .optional({ nullable: true, values: "falsy" })
+      .isNumeric()
+      .custom(validators.checkNumberPositiveIntegerOrHalf),
+    ,
     body("taskStatus, Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
-
     body("projectId")
       .optional({ nullable: true, values: "falsy" })
       .isString()
@@ -42,7 +46,7 @@ router.post(
 /**
  * @route GET /tasks
  * @description get a list of current user's tasks with pagination
- * @query {search, taskStatus,  assigneeId, projectId, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, taskStatus, assigneeId, projectId, effortGreaterThan, effortLowerThan, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
 router.get(
@@ -62,6 +66,16 @@ router.get(
       .optional({ nullable: true, values: "falsy" })
       .isString()
       .custom(validators.checkObjectId),
+    query("effortGreaterThan", "Invalid Effort")
+      .optional({ nullable: true, values: "falsy" })
+      .isNumeric()
+      .custom(validators.checkNumberPositiveIntegerOrHalf),
+    ,
+    query("effortLowerThan", "Invalid Effort")
+      .optional({ nullable: true, values: "falsy" })
+      .isNumeric()
+      .custom(validators.checkNumberPositiveIntegerOrHalf),
+    ,
     query("startAfter", "Invalid Date Format")
       .optional({ nullable: true, values: "falsy" })
       .isDate(),
@@ -95,7 +109,7 @@ router.get(
 /**
  * @route PUT /tasks/:id
  * @description edit fields of tasks
- * @body { title, description, assigneeId, projectId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
+ * @body { title, description, effort, assigneeId, projectId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
  * @access login required - project owner, project Lead for projects, normal project member can only update taskStatus. Any user can edit personal tasks.
  */
 router.put(
@@ -103,8 +117,12 @@ router.put(
   authentication.loginRequired,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
+    body("effort", "Invalid Effort")
+      .optional({ nullable: true, values: "falsy" })
+      .isNumeric()
+      .custom(validators.checkNumberPositiveIntegerOrHalf),
     body("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
-      .optional()
+      .optional({ nullable: true, values: "falsy" })
       .isString()
       .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
 

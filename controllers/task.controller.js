@@ -55,6 +55,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   let {
     title,
     description,
+    effort,
     taskStatus,
     projectId,
     assigneeId,
@@ -141,6 +142,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   let task = await Task.create({
     title,
     description,
+    effort,
     taskStatus,
     project: projectId,
     assignee: assigneeId,
@@ -198,6 +200,8 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
     "taskStatus",
     "assigneeId",
     "projectId",
+    "effortGreaterThan",
+    "effortLowerThan",
     "startAfter",
     "startBefore",
     "dueAfter",
@@ -252,6 +256,10 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
             return {
               assignee: filter[field],
             };
+          case "effortGreaterThan":
+            return { effort: { $gte: filter[field] } };
+          case "effortLowerThan":
+            return { effort: { $lte: filter[field] } };
           case "startAfter":
             return { startAt: { $gte: filter[field] } };
           case "startBefore":
@@ -494,6 +502,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   const allows = [
     "title",
     "description",
+    "effort",
     "assigneeId",
     "projectId",
     "taskStatus",

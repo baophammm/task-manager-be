@@ -63,4 +63,15 @@ validators.checkCryptoString = (value) => {
   return true;
 };
 
+validators.checkNumberPositiveInteger = (value) => {
+  const isValid = Number.isInteger(value) && value >= 0;
+  if (!isValid) throw new Error("Invalid Positive Integer");
+  return true;
+};
+
+validators.checkNumberPositiveIntegerOrHalf = (value) => {
+  const isValid = value >= 0 && value % 0.5 === 0;
+  if (!isValid) throw new Error("Invalid Positive Integer or Half");
+  return true;
+};
 module.exports = validators;

@@ -5,12 +5,12 @@ const taskSchema = Schema(
   {
     title: { type: String, required: true },
     description: { type: String, default: "" },
+    effort: { type: Number, default: 0 },
     taskStatus: {
       type: String,
       enum: ["Backlog", "InProgress", "Completed", "Archived"],
       default: "Backlog",
     },
-
     project: { type: Schema.Types.ObjectId, default: null, ref: "Project" },
     assignee: { type: Schema.Types.ObjectId, default: null, ref: "User" },
     startAt: { type: Schema.Types.Date },
