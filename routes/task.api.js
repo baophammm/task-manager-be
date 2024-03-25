@@ -154,4 +154,66 @@ router.get(
   taskController.getCommentsOfTask
 );
 
+/**
+ * @route POST /tasks/:id/subtasks
+ * @description create a subtask in a task
+ * @body { subTaskText }
+ * @access login required
+ */
+router.post(
+  "/:taskId/subtasks",
+  authentication.loginRequired,
+  validators.validate([
+    param("taskId").exists().isString().custom(validators.checkObjectId),
+    body("subTaskText", "Invalid SubTask Text").exists().notEmpty(),
+  ]),
+  taskController.createNewSubTaskOfSingleTask
+);
+
+/**
+ * @route GET /tasks/:id/subtasks
+ * @description get a list of subtasks in a task
+ * @access login required
+ */
+router.get(
+  "/:taskId/subtasks",
+  authentication.loginRequired,
+  validators.validate([
+    param("taskId").exists().isString().custom(validators.checkObjectId),
+  ]),
+  taskController.getSubTasksOfSingleTask
+);
+
+/**
+ * @route PUT /tasks/:taskId/subtasks/:subTaskId
+ * @description check or uncheck subtask
+ * @body { isChecked }
+ * @access login required
+ */
+router.put(
+  "/:taskId/subtasks/:subTaskId",
+  authentication.loginRequired,
+  validators.validate([
+    param("taskId").exists().isString().custom(validators.checkObjectId),
+    param("subTaskId").exists().isString().custom(validators.checkObjectId),
+    body("isChecked", "Invalid isChecked").exists().isBoolean(),
+  ]),
+  taskController.updateSubTaskIsChecked
+);
+
+/**
+ * @route DELETE /tasks/:taskId/subtasks/:subTaskId
+ * @description delete a subtask
+ * @access login required
+ */
+router.delete(
+  "/:taskId/subtasks/:subTaskId",
+  authentication.loginRequired,
+  validators.validate([
+    param("taskId").exists().isString().custom(validators.checkObjectId),
+    param("subTaskId").exists().isString().custom(validators.checkObjectId),
+  ]),
+  taskController.deleteSubTaskOfSingleTask
+);
+
 module.exports = router;

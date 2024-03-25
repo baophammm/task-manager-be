@@ -570,8 +570,6 @@ userController.removeProjectFromUserFavorite = catchAsync(
       (project) => !project.equals(projectId)
     );
 
-    console.log(targetUser);
-
     await targetUser.save();
 
     // Response

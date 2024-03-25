@@ -1068,6 +1068,19 @@ projectController.removeSingleMemberFromProject = catchAsync(
       to: memberId,
     });
 
+    // Delete project from user's favorite project list
+    const targetUser = await User.findOne({
+      _id: memberId,
+      isDeleted: false,
+    });
+
+    if (targetUser.favoriteProjects.includes(projectId)) {
+      targetUser.favoriteProjects = targetUser.favoriteProjects.filter(
+        (project) => !project.equals(projectId)
+      );
+      await targetUser.save();
+    }
+
     // change assignee of tasks that were assigned to the member to project owner.
     await Task.updateMany(
       {

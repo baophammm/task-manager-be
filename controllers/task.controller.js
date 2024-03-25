@@ -8,6 +8,7 @@ const {
   Types: { ObjectId },
 } = require("mongoose");
 const Notification = require("../models/Notification");
+const SubTask = require("../models/SubTask");
 
 const taskController = {};
 
@@ -34,6 +35,18 @@ taskController.calculateProjectTaskCount = async (projectId) => {
     await Project.findByIdAndUpdate(projectId, { taskCount });
   } catch (error) {
     throw new Error("Calculate Project Task Count Error");
+  }
+};
+
+taskController.calculateTaskSubTaskCount = async (taskId) => {
+  try {
+    const subTaskCount = await SubTask.countDocuments({
+      task: taskId,
+    });
+
+    await Task.findByIdAndUpdate(taskId, { subTaskCount });
+  } catch (error) {
+    throw new Error("Calculate Task SubTask Count Error");
   }
 };
 taskController.createNewTask = catchAsync(async (req, res, next) => {
@@ -705,5 +718,212 @@ taskController.getCommentsOfTask = catchAsync(async (req, res, next) => {
     "Get comments of Task successfully"
   );
 });
+
+taskController.createNewSubTaskOfSingleTask = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const taskId = req.params.taskId;
+    const { subTaskText } = req.body;
+
+    // Business logic validation
+    // only allow to add subtask to tasks that current user is lead or owner of project OR task is personal
+    const projects = await Project.find({
+      isDeleted: false,
+      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+    });
+
+    const projectIds = projects.map((project) => project._id);
+
+    let task = await Task.findOne({
+      _id: taskId,
+      isDeleted: false,
+      $or: [
+        { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+        { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
+      ],
+    });
+
+    if (!task)
+      throw new AppError(
+        400,
+        "Task not found or unauthorized to add subtask",
+        "Create New SubTask of Single Task Error"
+      );
+
+    // Process
+    const subTask = await SubTask.create({
+      task: taskId,
+      subTaskText,
+    });
+
+    // calculate subTaskCount of task
+    await taskController.calculateTaskSubTaskCount(taskId);
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      subTask,
+      null,
+      "Create New SubTask of Single Task successfully"
+    );
+  }
+);
+
+taskController.getSubTasksOfSingleTask = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const taskId = req.params.taskId;
+  // Business logic validation
+  // only allow to see subtasks of tasks that current user is lead or owner of project OR task is personal
+  const projects = await Project.find({
+    isDeleted: false,
+    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+  });
+
+  const projectIds = projects.map((project) => project._id);
+
+  let task = await Task.findOne({
+    _id: taskId,
+    isDeleted: false,
+    $or: [
+      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+      { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
+    ],
+  });
+
+  if (!task)
+    throw new AppError(
+      400,
+      "Task not found or unauthorized to view subtasks",
+      "Get SubTasks of Single Task Error"
+    );
+
+  // Process
+  const count = await SubTask.countDocuments({
+    task: taskId,
+  });
+
+  const subTasks = await SubTask.find({
+    task: taskId,
+  });
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    { subTasks, count },
+    null,
+    "Get SubTasks of Single Task successfully"
+  );
+});
+
+taskController.updateSubTaskIsChecked = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const { taskId, subTaskId } = req.params;
+  const { isChecked } = req.body;
+  // Business logic validation
+  // only allow to update subtask of tasks that current user is lead or owner of project OR task is personal
+  const projects = await Project.find({
+    isDeleted: false,
+    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+  });
+
+  const projectIds = projects.map((project) => project._id);
+
+  let task = await Task.findOne({
+    _id: taskId,
+    isDeleted: false,
+    $or: [
+      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+      { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
+    ],
+  });
+
+  if (!task)
+    throw new AppError(
+      400,
+      "Task not found or unauthorized to update subtask",
+      "Update SubTask IsChecked Error"
+    );
+
+  const subTask = await SubTask.findOne({
+    _id: subTaskId,
+    task: taskId,
+  });
+
+  if (!subTask)
+    throw new AppError(
+      400,
+      "SubTask not found",
+      "Update SubTask IsChecked Error"
+    );
+  // Process
+  subTask.isChecked = isChecked;
+  await subTask.save();
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    subTask,
+    null,
+    "Update SubTask IsChecked successfully"
+  );
+});
+
+taskController.deleteSubTaskOfSingleTask = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const currentUserId = req.userId;
+    const { taskId, subTaskId } = req.params;
+
+    // Business logic validation
+    // only allow to delete subtask of tasks that current user is lead or owner of project OR task is personal
+    const projects = await Project.find({
+      isDeleted: false,
+      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+    });
+
+    const projectIds = projects.map((project) => project._id);
+
+    let task = await Task.findOne({
+      _id: taskId,
+      isDeleted: false,
+      $or: [
+        { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
+        { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
+      ],
+    });
+
+    if (!task)
+      throw new AppError(
+        400,
+        "Task not found or unauthorized to delete subtask",
+        "Delete SubTask of Single Task Error"
+      );
+
+    const subTask = await SubTask.findOneAndDelete({
+      _id: subTaskId,
+      task: taskId,
+    });
+
+    if (!subTask) throw new AppError(400, "SubTask not found", "");
+    // Process
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      subTask,
+      null,
+      "Delete SubTask of Single Task successfully"
+    );
+  }
+);
 
 module.exports = taskController;

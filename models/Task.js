@@ -21,6 +21,7 @@ const taskSchema = Schema(
     createdBy: { type: Schema.Types.ObjectId, required: true, ref: "User" },
 
     isDeleted: { type: Boolean, default: false, select: false },
+    subTaskCount: { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
   },
   {
