@@ -1068,6 +1068,17 @@ projectController.removeSingleMemberFromProject = catchAsync(
       to: memberId,
     });
 
+    // change assignee of tasks that were assigned to the member to project owner.
+    await Task.updateMany(
+      {
+        project: projectId,
+        assignee: memberId,
+      },
+      {
+        assignee: project.projectOwner,
+      }
+    );
+
     // create notification for user / projectOwner
     const currentUser = await User.findById(currentUserId);
     await createNewMongoNotification({
