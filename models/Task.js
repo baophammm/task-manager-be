@@ -22,6 +22,7 @@ const taskSchema = Schema(
 
     isDeleted: { type: Boolean, default: false, select: false },
     subTaskCount: { type: Number, default: 0 },
+    checklistCount: { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
   },
   {

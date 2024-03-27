@@ -4,13 +4,25 @@ const User = require("../models/User");
 const Project = require("../models/Project");
 const Comment = require("../models/Comment");
 const { createNewMongoNotification } = require("./notification.controller");
+
+const { calculateTaskChecklistCount } = require("./checklist.controller");
+
 const {
   Types: { ObjectId },
 } = require("mongoose");
 const Notification = require("../models/Notification");
-const SubTask = require("../models/SubTask");
+const Checklist = require("../models/Checklist");
+const ChecklistItem = require("../models/ChecklistItem");
+const { check } = require("express-validator");
 
 const taskController = {};
+
+taskController.checkTaskAccess = async (taskId, userId) => {
+  const task = await Task.findOne({
+    _id: taskId,
+    isDeleted: false,
+  });
+};
 
 taskController.calculateUserTaskCount = async (userId) => {
   try {
@@ -38,17 +50,24 @@ taskController.calculateProjectTaskCount = async (projectId) => {
   }
 };
 
-taskController.calculateTaskSubTaskCount = async (taskId) => {
+taskController.calculateProjectTotalEffort = async (projectId) => {
   try {
-    const subTaskCount = await SubTask.countDocuments({
-      task: taskId,
+    const tasks = await Task.find({
+      project: projectId,
+      isDeleted: false,
     });
 
-    await Task.findByIdAndUpdate(taskId, { subTaskCount });
+    let totalEffort = 0;
+    tasks.forEach((task) => {
+      totalEffort += task.effort;
+    });
+
+    await Project.findByIdAndUpdate(projectId, { totalEffort });
   } catch (error) {
-    throw new Error("Calculate Task SubTask Count Error");
+    throw new Error("Calculate Project Total Effort Error");
   }
 };
+
 taskController.createNewTask = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
@@ -154,6 +173,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   await taskController.calculateUserTaskCount(assigneeId);
   if (projectId) {
     await taskController.calculateProjectTaskCount(projectId);
+    await taskController.calculateProjectTotalEffort(projectId);
   }
 
   task = await Task.findById(task._id).populate(["project", "assignee"]);
@@ -534,6 +554,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   // Update task count of user and project
   if (newProjectId && !previousProjectId) {
     await taskController.calculateProjectTaskCount(newProjectId);
+    await taskController.calculateProjectTotalEffort(newProjectId);
   }
 
   if (newAssigneeId) {
@@ -619,6 +640,7 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
   await taskController.calculateUserTaskCount(currentUserId);
   if (task.project) {
     await taskController.calculateProjectTaskCount(task.project);
+    await taskController.calculateProjectTotalEffort(task.project);
   }
 
   // send notification
@@ -728,15 +750,15 @@ taskController.getCommentsOfTask = catchAsync(async (req, res, next) => {
   );
 });
 
-taskController.createNewSubTaskOfSingleTask = catchAsync(
+taskController.createNewChecklistOfSingleTask = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
     const taskId = req.params.taskId;
-    const { subTaskText } = req.body;
+    const { checklistTitle } = req.body;
 
     // Business logic validation
-    // only allow to add subtask to tasks that current user is lead or owner of project OR task is personal
+    // only allow to add checklist to tasks that current user is lead or owner of project OR task is personal
     const projects = await Project.find({
       isDeleted: false,
       $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
@@ -756,146 +778,41 @@ taskController.createNewSubTaskOfSingleTask = catchAsync(
     if (!task)
       throw new AppError(
         400,
-        "Task not found or unauthorized to add subtask",
-        "Create New SubTask of Single Task Error"
+        "Task not found or unauthorized to add checklist",
+        "Create New Checklist of Single Task Error"
       );
 
     // Process
-    const subTask = await SubTask.create({
+    const checklist = await Checklist.create({
       task: taskId,
-      subTaskText,
+      checklistTitle,
     });
 
-    // calculate subTaskCount of task
-    await taskController.calculateTaskSubTaskCount(taskId);
-
+    // calculate checklistCount of task
+    await calculateTaskChecklistCount(taskId);
     // Response
     return sendResponse(
       res,
       200,
       true,
-      subTask,
+      checklist,
       null,
-      "Create New SubTask of Single Task successfully"
+      "Create New Checklist of Single Task successfully"
     );
   }
 );
 
-taskController.getSubTasksOfSingleTask = catchAsync(async (req, res, next) => {
-  // Get data from requests
-  const currentUserId = req.userId;
-  const taskId = req.params.taskId;
-  // Business logic validation
-  // only allow to see subtasks of tasks that current user is lead or owner of project OR task is personal
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-  });
-
-  const projectIds = projects.map((project) => project._id);
-
-  let task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
-    ],
-  });
-
-  if (!task)
-    throw new AppError(
-      400,
-      "Task not found or unauthorized to view subtasks",
-      "Get SubTasks of Single Task Error"
-    );
-
-  // Process
-  const count = await SubTask.countDocuments({
-    task: taskId,
-  });
-
-  const subTasks = await SubTask.find({
-    task: taskId,
-  });
-
-  // Response
-  return sendResponse(
-    res,
-    200,
-    true,
-    { subTasks, count },
-    null,
-    "Get SubTasks of Single Task successfully"
-  );
-});
-
-taskController.updateSubTaskIsChecked = catchAsync(async (req, res, next) => {
-  // Get data from requests
-  const currentUserId = req.userId;
-  const { taskId, subTaskId } = req.params;
-  const { isChecked } = req.body;
-  // Business logic validation
-  // only allow to update subtask of tasks that current user is lead or owner of project OR task is personal
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-  });
-
-  const projectIds = projects.map((project) => project._id);
-
-  let task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
-    ],
-  });
-
-  if (!task)
-    throw new AppError(
-      400,
-      "Task not found or unauthorized to update subtask",
-      "Update SubTask IsChecked Error"
-    );
-
-  const subTask = await SubTask.findOne({
-    _id: subTaskId,
-    task: taskId,
-  });
-
-  if (!subTask)
-    throw new AppError(
-      400,
-      "SubTask not found",
-      "Update SubTask IsChecked Error"
-    );
-  // Process
-  subTask.isChecked = isChecked;
-  await subTask.save();
-  // Response
-  return sendResponse(
-    res,
-    200,
-    true,
-    subTask,
-    null,
-    "Update SubTask IsChecked successfully"
-  );
-});
-
-taskController.deleteSubTaskOfSingleTask = catchAsync(
+taskController.getChecklistsOfSingleTask = catchAsync(
   async (req, res, next) => {
     // Get data from requests
     const currentUserId = req.userId;
-    const { taskId, subTaskId } = req.params;
+    const taskId = req.params.taskId;
 
     // Business logic validation
-    // only allow to delete subtask of tasks that current user is lead or owner of project OR task is personal
+    // only allow to see checklists of tasks that current user is a member of project
     const projects = await Project.find({
       isDeleted: false,
-      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+      projectMembers: currentUserId,
     });
 
     const projectIds = projects.map((project) => project._id);
@@ -903,34 +820,47 @@ taskController.deleteSubTaskOfSingleTask = catchAsync(
     let task = await Task.findOne({
       _id: taskId,
       isDeleted: false,
-      $or: [
-        { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-        { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
-      ],
+      project: { $in: projectIds },
     });
 
     if (!task)
       throw new AppError(
         400,
-        "Task not found or unauthorized to delete subtask",
-        "Delete SubTask of Single Task Error"
+        "Task not found or unauthorized to view checklists",
+        "Get Checklists of Single Task Error"
       );
 
-    const subTask = await SubTask.findOneAndDelete({
-      _id: subTaskId,
+    // Process
+    const count = await Checklist.countDocuments({
       task: taskId,
     });
 
-    if (!subTask) throw new AppError(400, "SubTask not found", "");
-    // Process
+    let checklists = await Checklist.find({
+      task: taskId,
+    });
+
+    // add checklist items to each checklist
+    for (let i = 0; i < checklists.length; i++) {
+      const checklistId = checklists[i]._id;
+      const checklistItems = await ChecklistItem.find({
+        checklist: checklistId,
+      });
+
+      checklists[i] = checklists[i].toObject(); // convert to plain object
+      console.log("CHecking checklist items in BE", checklistItems);
+      checklists[i].checklistItems = checklistItems;
+
+      console.log("CHECKLIST AFTER ADDING CHECKLISTITEM", checklists[i]);
+    }
+
     // Response
     return sendResponse(
       res,
       200,
       true,
-      subTask,
+      { checklists, count },
       null,
-      "Delete SubTask of Single Task successfully"
+      "Get Checklists of Single Task successfully"
     );
   }
 );

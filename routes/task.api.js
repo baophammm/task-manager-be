@@ -3,6 +3,7 @@ const taskController = require("../controllers/task.controller");
 const authentication = require("../middlewares/authentication");
 const validators = require("../middlewares/validators");
 const { body, param, query } = require("express-validator");
+const taskMiddlewares = require("../middlewares/taskMiddlewares");
 const router = express.Router();
 
 /**
@@ -40,6 +41,7 @@ router.post(
       .optional({ nullable: true, values: "falsy" })
       .isDate(),
   ]),
+
   taskController.createNewTask
 );
 
@@ -173,65 +175,33 @@ router.get(
 );
 
 /**
- * @route POST /tasks/:id/subtasks
- * @description create a subtask in a task
- * @body { subTaskText }
+ * @route POST /tasks/:taskId/checklists
+ * @description create a checklist in a task
+ * @body { checklistTitle }
  * @access login required
  */
+
 router.post(
-  "/:taskId/subtasks",
+  "/:taskId/checklists",
   authentication.loginRequired,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
-    body("subTaskText", "Invalid SubTask Text").exists().notEmpty(),
+    body("checklistTitle", "Invalid Checklist Title").exists().notEmpty(),
   ]),
-  taskController.createNewSubTaskOfSingleTask
+  taskController.createNewChecklistOfSingleTask
 );
 
 /**
- * @route GET /tasks/:id/subtasks
- * @description get a list of subtasks in a task
+ * @route GET /tasks/:taskId/checklists
+ * @description get a list of checklists in a task
  * @access login required
  */
 router.get(
-  "/:taskId/subtasks",
+  "/:taskId/checklists",
   authentication.loginRequired,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),
-  taskController.getSubTasksOfSingleTask
+  taskController.getChecklistsOfSingleTask
 );
-
-/**
- * @route PUT /tasks/:taskId/subtasks/:subTaskId
- * @description check or uncheck subtask
- * @body { isChecked }
- * @access login required
- */
-router.put(
-  "/:taskId/subtasks/:subTaskId",
-  authentication.loginRequired,
-  validators.validate([
-    param("taskId").exists().isString().custom(validators.checkObjectId),
-    param("subTaskId").exists().isString().custom(validators.checkObjectId),
-    body("isChecked", "Invalid isChecked").exists().isBoolean(),
-  ]),
-  taskController.updateSubTaskIsChecked
-);
-
-/**
- * @route DELETE /tasks/:taskId/subtasks/:subTaskId
- * @description delete a subtask
- * @access login required
- */
-router.delete(
-  "/:taskId/subtasks/:subTaskId",
-  authentication.loginRequired,
-  validators.validate([
-    param("taskId").exists().isString().custom(validators.checkObjectId),
-    param("subTaskId").exists().isString().custom(validators.checkObjectId),
-  ]),
-  taskController.deleteSubTaskOfSingleTask
-);
-
 module.exports = router;

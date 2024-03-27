@@ -29,9 +29,13 @@ router.use("/projects", projectApi);
 const taskApi = require("./task.api");
 router.use("/tasks", taskApi);
 
-// subTaskApi
-const subTaskApi = require("./subtask.api");
-router.use("/subtasks", subTaskApi);
+// checklistApi
+const checklistApi = require("./checklist.api");
+router.use("/checklists", checklistApi);
+
+// checklistItemApi
+const checklistItemApi = require("./checklistItem.api");
+router.use("/checklistItems", checklistItemApi);
 
 // commentApi
 const commentApi = require("./comment.api");

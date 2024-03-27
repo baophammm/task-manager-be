@@ -25,6 +25,7 @@ const projectSchema = Schema(
     isDeleted: { type: Boolean, default: false, select: false },
     taskCount: { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
+    totalEffort: { type: Number, default: 0 },
   },
   {
     timestamps: true,
