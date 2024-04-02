@@ -3,6 +3,7 @@ const Project = require("../models/Project");
 const User = require("../models/User");
 const Invitation = require("../models/Invitation");
 const Task = require("../models/Task");
+const Tag = require("../models/Tag");
 const { createNewMongoInvitation } = require("./invitation.controller");
 const { createNewMongoNotification } = require("./notification.controller");
 const taskController = require("./task.controller");
@@ -240,34 +241,16 @@ projectController.getProjects = catchAsync(async (req, res, next) => {
 
 projectController.getSingleProject = catchAsync(async (req, res, next) => {
   // Get data from requests
-  const currentUserId = req.userId;
+  // const currentUserId = req.userId;
   const projectId = req.params.projectId;
 
   // Business logic validation
-  const filterConditions = [
-    { _id: projectId },
-    { isDeleted: false },
-    {
-      $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }], // project only shows up when current user owns it or is a member in it
-    },
-  ];
 
-  const filterCriteria = filterConditions.length
-    ? { $and: filterConditions }
-    : {};
-
-  let project = await Project.findOne(filterCriteria).populate([
+  // Process
+  const project = await Project.findById(projectId).populate([
     "projectOwner",
     "projectMembers",
   ]);
-
-  if (!project)
-    throw new AppError(
-      400,
-      "Project not found or Unauthorized to see project",
-      "Get Single Project Error"
-    );
-  // Process
   // Response
   return sendResponse(
     res,
@@ -289,30 +272,9 @@ projectController.getMembersOfSingleProject = catchAsync(
     page = parseInt(page) || 1;
     limit = parseInt(limit) || 10;
 
-    const filterConditions = [
-      { _id: projectId },
-      { isDeleted: false },
-      {
-        $or: [
-          { projectOwner: currentUserId },
-          { projectMembers: currentUserId },
-        ], // project only shows up when current user owns it or is a member in it
-      },
-    ];
-
-    const filterCriteria = filterConditions.length
-      ? { $and: filterConditions }
-      : {};
-
-    let project = await Project.findOne(filterCriteria);
-
-    if (!project)
-      throw new AppError(
-        400,
-        "Project not found or Unauthorized to see project",
-        "Get Members of Single Project Error"
-      );
     // Process
+    const project = await Project.findById(projectId);
+
     const memberFilterConditions = [
       { isDeleted: false },
       { _id: { $in: project.projectMembers } }, //select only users in the project
@@ -360,27 +322,7 @@ projectController.updateSingleProject = catchAsync(async (req, res, next) => {
 
   // Business logic validation
 
-  const filterConditions = [
-    { _id: projectId },
-    { isDeleted: false },
-    { projectOwner: currentUserId }, //only allows to update project when he/she is the owner
-  ];
-
-  const filterCriteria = filterConditions.length
-    ? { $and: filterConditions }
-    : {};
-
-  let project = await Project.findOne(filterCriteria).populate([
-    "projectOwner",
-    "projectMembers",
-  ]);
-
-  if (!project)
-    throw new AppError(
-      400,
-      "Project not found or Unauthorized to edit project",
-      "Update Single Project Error"
-    );
+  let project = await Project.findById(projectId);
 
   const projectOriginalTitle = project ? project.title : null;
 
@@ -437,19 +379,12 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
   const projectId = req.params.projectId;
+
   // Business logic validation
-  let project = await Project.findOne({ _id: projectId, isDeleted: false });
 
-  if (!project)
-    throw new AppError(400, "Project not found", "Delete Single Project Error");
-
-  if (!project.projectOwner.equals(currentUserId))
-    throw new AppError(
-      400,
-      "Only project owner can delete project",
-      "Delete Single Project Error"
-    );
   // Process
+
+  let project = await Project.findById(projectId);
 
   project.isDeleted = true;
   // calculate Project Own count for project Owner
@@ -546,6 +481,7 @@ projectController.getProjectAddNewMembers = catchAsync(
           "Get List of Project Add New Members Error"
         );
     });
+
     // Process
 
     const filterConditions = [
@@ -611,19 +547,6 @@ projectController.createNewProjectInvitation = catchAsync(
     const toUserId = req.body.to;
 
     // Business logic validation
-
-    let project = await Project.findOne({
-      _id: projectId,
-      projectOwner: currentUserId,
-      isDeleted: false,
-    });
-
-    if (!project)
-      throw new AppError(
-        400,
-        "Cannot find project or Unauthorized to invite member to this project",
-        "Create New Project Invitation Error"
-      );
 
     const user = await User.findOne({ _id: toUserId, isDeleted: false });
     if (!user)
@@ -945,19 +868,7 @@ projectController.updateLeadRoleOfSingleMember = catchAsync(
     const { projectId, memberId } = req.params;
     const { isNewLead } = req.body;
     // Business logic validation
-    // check project accessibility
-    let project = await Project.findOne({
-      _id: projectId,
-      isDeleted: false,
-      projectOwner: currentUserId,
-    });
-
-    if (!project)
-      throw new AppError(
-        401,
-        "Cannot Find Project or Unauthorized to See Project",
-        "Update Lead Role Of Single Member Error"
-      );
+    let project = await Project.findById(projectId);
 
     // Check if targeted member is in project
     if (!project.projectMembers.includes(memberId))
@@ -1027,25 +938,22 @@ projectController.removeSingleMemberFromProject = catchAsync(
     const { projectId, memberId } = req.params;
 
     // Business logic validation
-    // check project accessibility
-    let project = await Project.findOne({
-      _id: projectId,
-      isDeleted: false,
-      projectMembers: currentUserId,
-    });
 
-    if (!project)
-      throw new AppError(
-        401,
-        "Cannot Find Project or Unauthorized to See Project",
-        "Remove Single Member From Project Error"
-      );
+    let project = await Project.findById(projectId);
 
     // Check if targeted member is in project
     if (!project.projectMembers.includes(memberId))
       throw new AppError(
         400,
         "Targeted Member Not In Project",
+        "Remove Single Member From Project Error"
+      );
+
+    // project owner cannot be removed
+    if (project.projectOwner.equals(memberId))
+      throw new AppError(
+        400,
+        "Project Owner cannot be removed",
         "Remove Single Member From Project Error"
       );
     // Process
@@ -1118,5 +1026,116 @@ projectController.removeSingleMemberFromProject = catchAsync(
     );
   }
 );
+
+projectController.createNewProjectTag = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const projectId = req.params.projectId;
+  let { tagLabel, color, colorShade } = req.body;
+
+  // Business logic validation
+
+  // check if Tag label already exists
+  let tag = await Tag.findOne({
+    tagLabel,
+    project: projectId,
+  });
+
+  if (tag)
+    throw new AppError(400, "Tag already exists", "Create New Tag Error");
+
+  // check current project tags
+  const tags = await Tag.find({ project: projectId });
+
+  // get list of current tags set of color and color shade
+  const currentColorSetList = tags.map((tag) => ({
+    color: tag.color,
+    colorShade: tag.colorShade,
+  }));
+
+  currentColorSetList.forEach((colorSet) => {
+    if (colorSet.color === color && colorSet.colorShade === colorShade)
+      throw new AppError(
+        400,
+        "Tag color and color shade already exists. Choose another color set for new tag",
+        "Create New Tag Error"
+      );
+  });
+
+  // Process
+
+  tag = await Tag.create({
+    tagLabel,
+    color,
+    colorShade,
+    project: projectId,
+    createdBy: currentUserId,
+  });
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    tag,
+    null,
+    "Create New Project Tag successfully"
+  );
+});
+
+projectController.getProjectTags = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const projectId = req.params.projectId;
+  const { page, limit, ...filter } = { ...req.query };
+
+  // Business logic validation
+
+  const allows = ["search"];
+  const filterKeys = Object.keys(filter);
+
+  filterKeys.map((key) => {
+    if (!allows.includes(key))
+      throw new AppError(
+        400,
+        `Key ${key} is not allowed. Reminder: Case sensitivity`,
+        "Get List of Project Tags Error"
+      );
+  });
+  // Process
+  const filterConditions = [];
+
+  // query filters
+  if (req.query.search) {
+    filterConditions.push({
+      $or: [
+        { tagLabel: { $regex: req.query.search, $options: "i" } },
+        { color: { $regex: req.query.search, $options: "i" } },
+      ],
+    });
+  }
+
+  const filterCriteria = filterConditions.length
+    ? { $and: filterConditions }
+    : {};
+
+  const count = await Tag.countDocuments({
+    project: projectId,
+    ...filterCriteria,
+  });
+  const tags = await Tag.find({
+    project: projectId,
+    ...filterCriteria,
+  });
+
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    { tags, count },
+    null,
+    "Get Project Tags successfully"
+  );
+});
 
 module.exports = projectController;

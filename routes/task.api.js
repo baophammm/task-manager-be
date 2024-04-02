@@ -4,17 +4,19 @@ const authentication = require("../middlewares/authentication");
 const validators = require("../middlewares/validators");
 const { body, param, query } = require("express-validator");
 const taskMiddlewares = require("../middlewares/taskMiddlewares");
+const projectMiddlewares = require("../middlewares/projectMiddlewares");
 const router = express.Router();
 
 /**
  * @route POST /tasks
  * @description create a task
- * @body {title, description, effort, taskStatus, assigneeId, projectId, startAt, dueAt}
+ * @body {title, description, effort, taskStatus, tags, assigneeId, projectId, startAt, dueAt}
  * @access login required - project owner, project Lead for projects. Any user can create task for personal tasks.
  */
 router.post(
   "/",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectLeadUpdateAccess,
   validators.validate([
     body("title", "Invalid Title").exists().notEmpty(),
     body("effort", "Invalid Effort")
@@ -48,18 +50,18 @@ router.post(
 /**
  * @route GET /tasks
  * @description get a list of current user's tasks with pagination
- * @query {search, taskStatus, assigneeId, projectId, effortGreaterThan, effortLowerThan, startBefore, startAfter, dueBefore, dueAfter}
+ * @query {search, tag, taskStatus, assigneeId, projectId, effortGreaterThan, effortLowerThan, startBefore, startAfter, dueBefore, dueAfter}
  * @access login required
  */
 router.get(
   "/",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectAccess,
   validators.validate([
     query("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
       .optional()
       .isString()
       .isIn(["Backlog", "InProgress", "Completed", "Archived"]),
-
     query("assigneeId")
       .optional({ nullable: true, values: "falsy" })
       .isString()
@@ -96,14 +98,16 @@ router.get(
 
 /**
  * @route GET /tasks/:id
- * @description get my single task detail
+ * @description get single task detail
  * @access login required
  */
 router.get(
-  "/:id",
+  "/:taskId",
   authentication.loginRequired,
+  taskMiddlewares.checkTaskAccess,
+  // projectMiddlewares.checkProjectAccess,
   validators.validate([
-    param("id").exists().isString().custom(validators.checkObjectId),
+    param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),
   taskController.getSingleTask
 );
@@ -111,18 +115,24 @@ router.get(
 /**
  * @route PUT /tasks/:id
  * @description edit fields of tasks
- * @body { title, description, effort, assigneeId, projectId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
+ * @body { title, description, effort, tags, assigneeId, projectId, taskStatus: "Backlog" or "Pending" or "InProgress" or "Completed" or "Reviewed" or "Archived", startAt, dueAt, files }
  * @access login required - project owner, project Lead for projects, normal project member can only update taskStatus. Any user can edit personal tasks.
  */
 router.put(
   "/:taskId",
   authentication.loginRequired,
+  taskMiddlewares.checkTaskUpdateAccess,
+  // projectMiddlewares.checkProjectLeadUpdateAccess,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
     body("effort", "Invalid Effort")
       .optional({ nullable: true, values: "falsy" })
       .isNumeric()
       .custom(validators.checkNumberPositiveIntegerOrHalf),
+    body("tags")
+      .optional({ nullable: true, values: "falsy" })
+      .isArray()
+      .custom(validators.checkArrayOfObjectId),
     body("taskStatus", "Invalid taskStatus. Reminder: Case sensitivity")
       .optional({ nullable: true, values: "falsy" })
       .isString()
@@ -154,6 +164,8 @@ router.put(
 router.delete(
   "/:taskId",
   authentication.loginRequired,
+  // taskMiddlewares.checkTaskUpdateAccess,
+  projectMiddlewares.checkProjectLeadUpdateAccess,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),
@@ -168,6 +180,8 @@ router.delete(
 router.get(
   "/:taskId/comments",
   authentication.loginRequired,
+  // taskMiddlewares.checkTaskAccess,
+  projectMiddlewares.checkProjectAccess,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),
@@ -184,6 +198,8 @@ router.get(
 router.post(
   "/:taskId/checklists",
   authentication.loginRequired,
+  taskMiddlewares.checkTaskUpdateAccess,
+  // projectMiddlewares.checkProjectLeadUpdateAccess,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
     body("checklistTitle", "Invalid Checklist Title").exists().notEmpty(),
@@ -199,6 +215,8 @@ router.post(
 router.get(
   "/:taskId/checklists",
   authentication.loginRequired,
+  taskMiddlewares.checkTaskAccess,
+  // projectMiddlewares.checkProjectAccess,
   validators.validate([
     param("taskId").exists().isString().custom(validators.checkObjectId),
   ]),

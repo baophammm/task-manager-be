@@ -25,6 +25,10 @@ router.use("/invitations", invitationApi);
 const projectApi = require("./project.api");
 router.use("/projects", projectApi);
 
+// tagApi
+const tagApi = require("./tag.api");
+router.use("/tags", tagApi);
+
 // taskApi
 const taskApi = require("./task.api");
 router.use("/tasks", taskApi);

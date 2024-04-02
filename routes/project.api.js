@@ -3,6 +3,7 @@ const projectController = require("../controllers/project.controller");
 const authentication = require("../middlewares/authentication");
 const validators = require("../middlewares/validators");
 const { body, param, query } = require("express-validator");
+const projectMiddlewares = require("../middlewares/projectMiddlewares");
 
 const router = express.Router();
 
@@ -85,6 +86,7 @@ router.get(
 router.get(
   "/:projectId",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
   ]),
@@ -100,6 +102,7 @@ router.get(
 router.get(
   "/:projectId/projectMembers",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
   ]),
@@ -115,6 +118,7 @@ router.get(
 router.put(
   "/:projectId",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectOwnerUpdateAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
     body("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
@@ -139,6 +143,7 @@ router.put(
 router.delete(
   "/:projectId",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectOwnerUpdateAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
   ]),
@@ -171,6 +176,7 @@ router.get(
 router.post(
   "/:projectId/invitations",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectOwnerUpdateAccess,
   validators.validate([
     param("projectId", "Invalid Project ID")
       .exists()
@@ -245,6 +251,7 @@ router.put(
 router.put(
   "/:projectId/projectMembers/:memberId",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectOwnerUpdateAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
     param("memberId").exists().isString().custom(validators.checkObjectId),
@@ -265,11 +272,56 @@ router.put(
 router.delete(
   "/:projectId/projectMembers/:memberId",
   authentication.loginRequired,
+  projectMiddlewares.checkProjectOwnerUpdateAccess,
   validators.validate([
     param("projectId").exists().isString().custom(validators.checkObjectId),
     param("memberId").exists().isString().custom(validators.checkObjectId),
   ]),
   projectController.removeSingleMemberFromProject
+);
+
+/**
+ * @route POST /projects/:projectId/tags
+ * @description create a new project tag
+ * @body {
+ * tagLabel,
+ * color: "red" or "yellow" or "orange" or "blue" or "green" or "purple",
+ * colorShade: "dark" or "main" or "light"}
+ * @access login required
+ */
+router.post(
+  "/:projectId/tags",
+  authentication.loginRequired,
+  projectMiddlewares.checkProjectLeadUpdateAccess,
+  validators.validate([
+    param("projectId").exists().isString().custom(validators.checkObjectId),
+    body("tagLabel", "Invalid Tag Label").exists().notEmpty(),
+    body("color", "Invalid Tag Color")
+      .exists()
+      .isString()
+      .isIn(["red", "yellow", "orange", "blue", "green", "purple"]),
+    body("colorShade", "Invalid Tag Color Shade")
+      .exists()
+      .isString()
+      .isIn(["dark", "main", "light"]),
+  ]),
+  projectController.createNewProjectTag
+);
+
+/**
+ * @route GET /projects/:projectId/tags
+ * @description get a list of project tags'
+ * @query { search }
+ * @access login required
+ */
+router.get(
+  "/:projectId/tags",
+  authentication.loginRequired,
+  projectMiddlewares.checkProjectAccess,
+  validators.validate([
+    param("projectId").exists().isString().custom(validators.checkObjectId),
+  ]),
+  projectController.getProjectTags
 );
 
 /**

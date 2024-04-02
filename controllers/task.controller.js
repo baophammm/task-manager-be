@@ -14,15 +14,9 @@ const Notification = require("../models/Notification");
 const Checklist = require("../models/Checklist");
 const ChecklistItem = require("../models/ChecklistItem");
 const { check } = require("express-validator");
+const Tag = require("../models/Tag");
 
 const taskController = {};
-
-taskController.checkTaskAccess = async (taskId, userId) => {
-  const task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-  });
-};
 
 taskController.calculateUserTaskCount = async (userId) => {
   try {
@@ -75,6 +69,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     title,
     description,
     effort,
+    tags,
     taskStatus,
     projectId,
     assigneeId,
@@ -86,18 +81,18 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
   // if project, can only set if your are project owner or Lead
 
   if (projectId) {
-    let targetProject = await Project.findOne({
-      _id: projectId,
-      isDeleted: false,
-      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-    });
+    // let targetProject = await Project.findOne({
+    //   _id: projectId,
+    //   isDeleted: false,
+    //   $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+    // });
 
-    if (!targetProject)
-      throw new AppError(
-        401,
-        "Cannot find project or Unauthorized to set task to this project",
-        "Create New Task Error"
-      );
+    // if (!targetProject)
+    //   throw new AppError(
+    //     401,
+    //     "Cannot find project or Unauthorized to set task to this project",
+    //     "Create New Task Error"
+    //   );
 
     // check if assignee exists or is in the project
     if (assigneeId) {
@@ -109,15 +104,29 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
       if (!assignee)
         throw new AppError(400, "Assignee not found", "Create New Task Error");
 
-      if (
-        !targetProject.projectMembers.includes(assigneeId) &&
-        !targetProject.projectOwner.equals(assigneeId)
-      )
+      if (!targetProject.projectMembers.includes(assigneeId))
         throw new AppError(
           400,
           "Assignee Not A Member of Selected Project",
           "Create New Task Error"
         );
+
+      // check if tags are in project tags
+      if (tags) {
+        // check duplicates and remove duplicates
+        const uniqueTags = [...new Set(tags)];
+        tags = uniqueTags;
+
+        const projectTags = await Tag.find({ project: projectId });
+        tags.forEach((tag) => {
+          if (!projectTags.includes(tag))
+            throw new AppError(
+              400,
+              "Tag not in Project Tags",
+              "Create New Task Error"
+            );
+        });
+      }
     }
 
     // if task and project have start and due date, limit task time period within project's time period
@@ -155,6 +164,26 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
         "Create New Task Error"
       );
   }
+
+  if (tags) {
+    // check duplicates and remove duplicates
+    const uniqueTags = [...new Set(tags)];
+    tags = uniqueTags;
+
+    const personalTags = await Tag.find({
+      project: null,
+      createdBy: currentUserId,
+    });
+
+    tags.forEach((tag) => {
+      if (!personalTags.includes(tag))
+        throw new AppError(
+          400,
+          "Tag not in Personal Tags",
+          "Create New Task Error"
+        );
+    });
+  }
   // Process
   assigneeId = assigneeId || currentUserId;
 
@@ -162,6 +191,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     title,
     description,
     effort,
+    tags,
     taskStatus,
     project: projectId,
     assignee: assigneeId,
@@ -217,6 +247,7 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   // check filter input
   const allows = [
     "search",
+    "tag",
     "taskStatus",
     "assigneeId",
     "projectId",
@@ -240,20 +271,20 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
   });
   // Process
   // only allow to see personal tasks or tasks within projects that current user is in
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }],
-  });
+  // const projects = await Project.find({
+  //   isDeleted: false,
+  //   $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }],
+  // });
 
-  const projectIds = projects.map((project) => project._id);
+  // const projectIds = projects.map((project) => project._id);
 
   const filterConditions = [
     {
       isDeleted: false,
     },
-    {
-      $or: [{ assignee: currentUserId }, { project: { $in: projectIds } }],
-    }, // tasks assigned to current user or other members in his/her projects
+    // {
+    //   $or: [{ assignee: currentUserId }, { project: { $in: projectIds } }],
+    // }, // tasks assigned to current user or other members in his/her projects
   ];
 
   // query filters
@@ -268,6 +299,10 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
                 { description: { $regex: filter[field], $options: "i" } },
               ],
             };
+          case "tag":
+            return {
+              tags: filter[field],
+            }; //TODO: check if tag is in task's list of tags
           case "projectId":
             return {
               project: filter[field],
@@ -308,7 +343,7 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
     .sort({ createdAt: -1 })
     .skip(offset)
     .limit(limit)
-    .populate(["project", "assignee"]);
+    .populate(["project", "assignee", "tags"]);
 
   // Response
   return sendResponse(
@@ -324,35 +359,16 @@ taskController.getTasks = catchAsync(async (req, res, next) => {
 taskController.getSingleTask = catchAsync(async (req, res, next) => {
   // Get data from requests
   const currentUserId = req.userId;
-  const taskId = req.params.id;
+  const taskId = req.params.taskId;
 
   // Business logic validation
-  // only allow to see personal task or task within projects that current user is in
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }],
-  });
 
-  const projectIds = projects.map((project) => project._id);
-
-  const task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      {
-        assignee: currentUserId,
-      },
-      { project: { $in: projectIds } },
-    ], //only tasks assigned to current user or within his/her projects
-  }).populate(["project", "assignee"]);
-
-  if (!task)
-    throw new AppError(
-      401,
-      "Task Not Found or Unauthorized to see Task",
-      "Get Single Task Error"
-    );
   // Process
+  let task = await Task.findById(taskId).populate([
+    "project",
+    "assignee",
+    "tags",
+  ]);
 
   // Response
   return sendResponse(
@@ -371,29 +387,8 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   const taskId = req.params.taskId;
 
   // Business logic validation
-  // only allow to edit task that is personal or if I am project Owner or Lead.
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-  });
-  // project Ids that current user is the owner or Lead
-  const projectIds = projects.map((project) => project._id);
 
-  let task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is owner or Lead
-    ],
-  });
-
-  if (!task)
-    throw new AppError(
-      401,
-      "Task Not Found or Unauthorized to Edit Task",
-      "Update Single Task Error"
-    );
+  let task = await Task.findById(taskId);
 
   const taskOriginalTitle = task ? task.title : null;
   if (req.body.startAt && req.body.dueAt) {
@@ -426,6 +421,14 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   }
 
   // If task not in project and add to new project => Check if new project in project Ids list of owner or Lead
+
+  const projects = await Project.find({
+    isDeleted: false,
+    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
+  });
+
+  // // project Ids that current user is the owner or Lead
+  const projectIds = projects.map((project) => project._id);
 
   if (!previousProjectId && newProjectId) {
     let isProjectAllowed = false;
@@ -516,6 +519,44 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       );
     }
   }
+  // check duplicated tags and throw error
+  if (req.body.tags) {
+    const uniqueTags = [...new Set(req.body.tags)];
+    if (uniqueTags.length !== req.body.tags.length)
+      throw new AppError(400, "Duplicate Tags", "Update Single Task Error");
+
+    // check if tags valid
+    const filterConditions = finalProjectId
+      ? [{ project: finalProjectId }]
+      : [{ project: null, createdBy: currentUserId }];
+
+    const tags = await Tag.find({ $and: filterConditions });
+    const tagIds = tags.map((tag) => tag._id.toString());
+
+    req.body.tags.forEach((tag) => {
+      if (!tagIds.includes(tag))
+        throw new AppError(
+          400,
+          "Tag not found or Not valid",
+          "Update Single Task Error"
+        );
+    });
+
+    // check if tags are in project tags
+    // if (finalProjectId) {
+    //   const projectTags = await Tag.find({ project: finalProjectId });
+    //   const projectTagIds = projectTags.map((tag) => tag._id.toString());
+    //   console.log(projectTagIds);
+    //   req.body.tags.forEach((tag) => {
+    //     if (!projectTagIds.includes(tag))
+    //       throw new AppError(
+    //         400,
+    //         "Tag not in Project Tags",
+    //         "Update Single Task Error"
+    //       );
+    //   });
+    // }
+  }
 
   // Process
 
@@ -523,6 +564,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     "title",
     "description",
     "effort",
+    "tags",
     "assigneeId",
     "projectId",
     "taskStatus",
@@ -549,7 +591,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   });
 
   await task.save();
-  task = await Task.findById(taskId).populate(["project", "assignee"]);
+  task = await Task.findById(taskId).populate(["project", "assignee", "tags"]);
 
   // Update task count of user and project
   if (newProjectId && !previousProjectId) {
@@ -612,29 +654,9 @@ taskController.deleteSingleTask = catchAsync(async (req, res, next) => {
 
   // Business logic validation
   // only allow to delete task that is personal or if I am project Owner or Lead.
-  const projects = await Project.find({
-    isDeleted: false,
-    $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-  });
-  // project Ids that current user is the owner or Lead
-  const projectIds = projects.map((project) => project._id);
 
-  let task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is owner or lead
-    ],
-  });
-
-  if (!task)
-    throw new AppError(
-      401,
-      "Task Not Found or Unauthorized to Delete Task",
-      "Delete Single Task Error"
-    );
   // Process
+  let task = await Task.findById(taskId);
   task.isDeleted = true; // soft delete task
   await task.save();
   await taskController.calculateUserTaskCount(currentUserId);
@@ -699,28 +721,6 @@ taskController.getCommentsOfTask = catchAsync(async (req, res, next) => {
 
   // Business logic validation
   // only allow to see tasks in projects that current user is in
-  const projects = await Project.find({
-    isDeleted: false,
-    projectMembers: currentUserId,
-  });
-
-  const projectIds = projects.map((project) => project._id);
-  // find task
-  const task = await Task.findOne({
-    _id: taskId,
-    isDeleted: false,
-    $or: [
-      { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-      { project: { $in: projectIds } }, //tasks within projects that current user is in
-    ],
-  });
-
-  if (!task)
-    throw new AppError(
-      400,
-      "Task not found or unauthorized to view task",
-      "Get Comments of Task Error"
-    );
 
   // Process
   const count = await Comment.countDocuments({
@@ -759,28 +759,6 @@ taskController.createNewChecklistOfSingleTask = catchAsync(
 
     // Business logic validation
     // only allow to add checklist to tasks that current user is lead or owner of project OR task is personal
-    const projects = await Project.find({
-      isDeleted: false,
-      $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
-    });
-
-    const projectIds = projects.map((project) => project._id);
-
-    let task = await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-      $or: [
-        { project: null, createdBy: currentUserId, assignee: currentUserId }, //personal task without project
-        { project: { $in: projectIds } }, //tasks within projects that current user is project owner or lead
-      ],
-    });
-
-    if (!task)
-      throw new AppError(
-        400,
-        "Task not found or unauthorized to add checklist",
-        "Create New Checklist of Single Task Error"
-      );
 
     // Process
     const checklist = await Checklist.create({
@@ -810,25 +788,6 @@ taskController.getChecklistsOfSingleTask = catchAsync(
 
     // Business logic validation
     // only allow to see checklists of tasks that current user is a member of project
-    const projects = await Project.find({
-      isDeleted: false,
-      projectMembers: currentUserId,
-    });
-
-    const projectIds = projects.map((project) => project._id);
-
-    let task = await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-      project: { $in: projectIds },
-    });
-
-    if (!task)
-      throw new AppError(
-        400,
-        "Task not found or unauthorized to view checklists",
-        "Get Checklists of Single Task Error"
-      );
 
     // Process
     const count = await Checklist.countDocuments({
@@ -847,10 +806,7 @@ taskController.getChecklistsOfSingleTask = catchAsync(
       });
 
       checklists[i] = checklists[i].toObject(); // convert to plain object
-      console.log("CHecking checklist items in BE", checklistItems);
       checklists[i].checklistItems = checklistItems;
-
-      console.log("CHECKLIST AFTER ADDING CHECKLISTITEM", checklists[i]);
     }
 
     // Response

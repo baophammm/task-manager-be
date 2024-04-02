@@ -11,6 +11,7 @@ const taskSchema = Schema(
       enum: ["Backlog", "InProgress", "Completed", "Archived"],
       default: "Backlog",
     },
+    tags: { type: [{ type: Schema.Types.ObjectId, ref: "Tag" }], default: [] },
     project: { type: Schema.Types.ObjectId, default: null, ref: "Project" },
     assignee: { type: Schema.Types.ObjectId, default: null, ref: "User" },
     startAt: { type: Schema.Types.Date },
