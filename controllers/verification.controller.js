@@ -46,13 +46,13 @@ verificationController.createNewUserVerification = async (
 
     const mailOptions = {
       from: {
-        name: "Taskify",
+        name: "Taskoodle",
         address: process.env.APP_USER,
       }, // sender address
       to: userEmail, // receiver's email
-      subject: "Confirm your email with Taskify", // Subject line
+      subject: "Confirm your email with Taskoodle", // Subject line
       text: "abc", // plain text body
-      html: `<p>Welcome to Taskify! Click on this <a href="${process.env.FRONT_END_PORT}/verifications/${verificationCode}">LINK</a> to verify your email.</p>
+      html: `<p>Welcome to Taskoodle! Click on this <a href="${process.env.FRONT_END_PORT}/verifications/${verificationCode}">LINK</a> to verify your email.</p>
       <p>Thank you!</p>`, // html body
     };
 
