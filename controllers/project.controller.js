@@ -383,7 +383,6 @@ projectController.deleteSingleProject = catchAsync(async (req, res, next) => {
   // Business logic validation
 
   // Process
-
   let project = await Project.findById(projectId);
 
   project.isDeleted = true;

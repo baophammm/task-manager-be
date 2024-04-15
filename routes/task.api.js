@@ -36,12 +36,8 @@ router.post(
       .optional({ nullable: true, values: "falsy" })
       .isString()
       .custom(validators.checkObjectId),
-    body("startAt", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
-    body("dueAt", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy" })
-      .isDate(),
+    body("startAt", "Invalid Date Format").exists().notEmpty().isDate(),
+    body("dueAt", "Invalid Date Format").exists().notEmpty().isDate(),
   ]),
 
   taskController.createNewTask

@@ -19,8 +19,8 @@ const projectSchema = Schema(
       type: [{ type: Schema.Types.ObjectId, ref: "User" }],
       default: [],
     },
-    startAt: { type: Schema.Types.Date },
-    dueAt: { type: Schema.Types.Date },
+    startAt: { type: Schema.Types.Date, required: true },
+    dueAt: { type: Schema.Types.Date, required: true },
 
     isDeleted: { type: Boolean, default: false, select: false },
     taskCount: { type: Number, default: 0 },

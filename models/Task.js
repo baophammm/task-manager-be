@@ -14,17 +14,18 @@ const taskSchema = Schema(
     tags: { type: [{ type: Schema.Types.ObjectId, ref: "Tag" }], default: [] },
     project: { type: Schema.Types.ObjectId, default: null, ref: "Project" },
     assignee: { type: Schema.Types.ObjectId, default: null, ref: "User" },
-    startAt: { type: Schema.Types.Date },
-    dueAt: { type: Schema.Types.Date },
+    startAt: { type: Schema.Types.Date, required: true },
+    dueAt: { type: Schema.Types.Date, required: true },
 
     files: { type: [{ type: String }], default: [] },
 
     createdBy: { type: Schema.Types.ObjectId, required: true, ref: "User" },
 
     isDeleted: { type: Boolean, default: false, select: false },
-    subTaskCount: { type: Number, default: 0 },
     checklistCount: { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
+
+    completedAt: { type: Schema.Types.Date, default: null },
   },
   {
     timestamps: true,

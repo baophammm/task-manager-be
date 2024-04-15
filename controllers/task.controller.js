@@ -86,6 +86,7 @@ taskController.createNewTask = catchAsync(async (req, res, next) => {
     //   isDeleted: false,
     //   $or: [{ projectOwner: currentUserId }, { projectLeads: currentUserId }],
     // });
+    let targetProject = await Project.findById(projectId);
 
     // if (!targetProject)
     //   throw new AppError(
@@ -391,6 +392,8 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   let task = await Task.findById(taskId);
 
   const taskOriginalTitle = task ? task.title : null;
+
+  // check start date and due date validation
   if (req.body.startAt && req.body.dueAt) {
     if (req.body.dueAt < req.body.startAt)
       throw new AppError(
@@ -400,15 +403,19 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
       );
   }
 
+  // compare start and due date with final task dates rather than just in req.body
+
   const previousAssigneeId = task.assignee;
   const previousProjectId = task.project;
   const previousStartAt = task.startAt;
   const previousDueAt = task.dueAt;
+  const previousTaskStatus = task.taskStatus;
 
   const newAssigneeId = req.body.assigneeId;
   const newProjectId = req.body.projectId;
   const newStartAt = req.body.startAt || null;
   const newDueAt = req.body.dueAt || null;
+  const newTaskStatus = req.body.taskStatus;
 
   // If task already in project, cannot change project id
   if (previousProjectId && newProjectId) {
@@ -568,7 +575,6 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     "assigneeId",
     "projectId",
     "taskStatus",
-
     "startAt",
     "dueAt",
     "files",
@@ -590,13 +596,33 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
     }
   });
 
+  // if task status is changed to completed or archived, set completedAt
+  if (newTaskStatus) {
+    if (newTaskStatus === "Completed" || newTaskStatus === "Archived") {
+      // only update new date if previous status is not completed or archived
+      if (
+        previousTaskStatus !== "Completed" &&
+        previousTaskStatus !== "Archived"
+      )
+        task.completedAt = new Date();
+    }
+    if (newTaskStatus === "Backlog" || newTaskStatus === "InProgress") {
+      task.completedAt = null;
+    }
+  }
+
   await task.save();
   task = await Task.findById(taskId).populate(["project", "assignee", "tags"]);
 
-  // Update task count of user and project
-  if (newProjectId && !previousProjectId) {
-    await taskController.calculateProjectTaskCount(newProjectId);
-    await taskController.calculateProjectTotalEffort(newProjectId);
+  // Update task count of user and project, task effort
+  // if (newProjectId && !previousProjectId) {
+  //   await taskController.calculateProjectTaskCount(newProjectId);
+  //   await taskController.calculateProjectTotalEffort(newProjectId);
+  // }
+
+  if (finalProjectId) {
+    await taskController.calculateProjectTaskCount(finalProjectId);
+    await taskController.calculateProjectTotalEffort(finalProjectId);
   }
 
   if (newAssigneeId) {
@@ -787,7 +813,6 @@ taskController.getChecklistsOfSingleTask = catchAsync(
     const taskId = req.params.taskId;
 
     // Business logic validation
-    // only allow to see checklists of tasks that current user is a member of project
 
     // Process
     const count = await Checklist.countDocuments({

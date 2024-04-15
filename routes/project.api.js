@@ -23,12 +23,8 @@ router.post(
       .optional()
       .isString()
       .isIn(["Planning", "Ongoing", "Done"]),
-    body("startAt", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy", values: "falsy" })
-      .isDate(),
-    body("dueAt", "Invalid Date Format")
-      .optional({ nullable: true, values: "falsy", values: "falsy" })
-      .isDate(),
+    body("startAt", "Invalid Date Format").exists().notEmpty().isDate(),
+    body("dueAt", "Invalid Date Format").exists().notEmpty().isDate(),
     body("projectMembers")
       .optional()
       .isArray()
