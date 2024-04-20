@@ -404,6 +404,7 @@ taskController.updateSingleTask = catchAsync(async (req, res, next) => {
   }
 
   // compare start and due date with final task dates rather than just in req.body
+  
 
   const previousAssigneeId = task.assignee;
   const previousProjectId = task.project;
