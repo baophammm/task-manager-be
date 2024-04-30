@@ -16,7 +16,7 @@ userController.register = catchAsync(async (req, res, next) => {
 
   // Business logic Validation
   // Check if user already in DB
-  let user = await User.findOne({ email }, "+isDeleted +active");
+  let user = await User.findOne({ email }, "+googleId +isDeleted +active");
 
   if (user && user.active && !user.isDeleted)
     throw new AppError(400, "User already exists", "User Registration Error");
@@ -38,6 +38,20 @@ userController.register = catchAsync(async (req, res, next) => {
       { new: true }
     );
   }
+
+  // TODO - if user already exists but only by google => overwrite but keep googleId and profilePictureUrl
+  if (user && !user.active && user.googleId) {
+    user = await User.findOneAndUpdate(
+      { email, googleId: { $exists: true } },
+      {
+        firstName,
+        lastName,
+        password,
+      },
+      { new: true }
+    );
+  }
+
   // If no user at all => create new
   if (!user) {
     user = await User.create({ firstName, lastName, email, password });

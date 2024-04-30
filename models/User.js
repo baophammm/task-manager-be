@@ -8,7 +8,15 @@ const userSchema = Schema(
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true, select: false },
+    password: {
+      type: String,
+      required: function () {
+        return !this.googleId;
+      },
+      select: false,
+    },
+    googleId: { type: String, unique: true, select: false },
+
     profilePictureUrl: { type: String, default: "" },
 
     isDeleted: { type: Boolean, default: false, select: false },

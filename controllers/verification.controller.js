@@ -2,7 +2,6 @@ const { catchAsync, AppError, sendResponse } = require("../helpers/utils");
 const Verification = require("../models/Verification");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
-const path = require("path");
 const User = require("../models/User");
 const verificationController = {};
 

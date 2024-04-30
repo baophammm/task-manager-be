@@ -1,4 +1,5 @@
 const express = require("express");
+
 const authController = require("../controllers/auth.controller");
 const validators = require("../middlewares/validators");
 const { body } = require("express-validator");
@@ -21,4 +22,30 @@ router.post(
   ]),
   authController.loginWithEmail
 );
+
+/**
+ * @route POST /auth/login/google
+ * @description Login with google
+ * @body {email, firstName, lastName, profilePictureUrl, isGoogleVerified, googleId}
+ * @access Public
+ */
+router.post(
+  "/login/google",
+  validators.validate([
+    body("email", "Invalid email").exists().isEmail(),
+    body("firstName", "Invalid firstName").exists().notEmpty(),
+    body("lastName", "Invalid lastName").exists().notEmpty(),
+    body("profilePictureUrl", "Invalid profilePictureUrl").exists().notEmpty(),
+    body("isGoogleVerified", "Invalid isGoogleVerified").exists().isBoolean(),
+    body("googleId", "Invalid googleId").exists().notEmpty(),
+  ]),
+  authController.loginWithGoogle
+);
+
+/**
+ * @route POST /auth/logout
+ * @description User logout
+ * @access login required
+ */
+
 module.exports = router;
