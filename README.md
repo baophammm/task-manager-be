@@ -21,12 +21,30 @@ https://task-manager-be-zi2w.onrender.com/api
  */
 ```
 
+```javascript
+/**
+ * @route POST /auth/login/google
+ * @description Login with google
+ * @body {email, firstName, lastName, profilePictureUrl, isGoogleVerified, googleId}
+ * @access Public
+ */
+```
+
 ### Verification API
 
 ```javascript
 /**
  * @route PUT /verifications/:verificationCode
  * @description verifying a user through verification Code
+ * @access Public
+ */
+```
+
+```javascript
+/**
+ * @route POST /verifications/requestPasswordReset
+ * @description Create new requestPasswordReset
+ * @body { email }
  * @access Public
  */
 ```
@@ -80,6 +98,24 @@ https://task-manager-be-zi2w.onrender.com/api
  * @route DELETE /users/:id
  * @description Delete a user profile
  * @access login required
+ */
+```
+
+```javascript
+/**
+ * @route PUT /users/:id/password
+ * @description Change user password
+ * @body { currentPassword, newPassword }
+ * @access login required
+ */
+```
+
+```javascript
+/**
+ * @route POST /users/resetPassword
+ * @description Reset user password
+ * @body { resetPasswordToken, verificationCode, newPassword }
+ * @access Public
  */
 ```
 

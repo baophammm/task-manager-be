@@ -5,6 +5,11 @@ const verificationSchema = Schema(
   {
     user: { type: Schema.Types.ObjectId, required: true, ref: "User" },
     verificationCode: { type: String, required: true },
+    verificationType: {
+      type: String,
+      enum: ["NewUser", "ResetPassword"],
+      required: true,
+    },
   },
   {
     timestamps: true,

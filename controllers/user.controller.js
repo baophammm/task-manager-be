@@ -5,6 +5,8 @@ const Task = require("../models/Task");
 const bcrypt = require("bcryptjs");
 const Invitation = require("../models/Invitation");
 const Verification = require("../models/Verification");
+const jwt = require("jsonwebtoken");
+const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY;
 
 const { createNewUserVerification } = require("./verification.controller");
 // const verificationController = require("./verification.controller");
@@ -244,109 +246,93 @@ userController.deleteUser = catchAsync(async (req, res, next) => {
     "Delete User Profile successfully"
   );
 });
-// userController.getCurrentUserProjects = catchAsync(async (req, res, next) => {
-//   // Get data from requests
-//   const currentUserId = req.userId;
-//   let { page, limit, ...filter } = { ...req.query };
 
-//   // Business logic validation
-//   page = parseInt(page) || 1;
-//   limit = parseInt(limit) || 10;
+userController.changeUserPassword = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const currentUserId = req.userId;
+  const userId = req.params.id;
+  const { currentPassword, newPassword } = req.body;
 
-//   // check filter input
-//   const allows = [
-//     "search",
-//     "currentUserRole",
-//     "projectStatus",
-//     "startAfter",
-//     "startBefore",
-//     "dueAfter",
-//     "dueBefore",
-//   ];
+  // Business logic Validation
+  const user = await User.findOne(
+    { _id: userId, isDeleted: false },
+    "+password"
+  );
+  if (!user)
+    throw new AppError(400, "User not found", "Change User Password Error");
 
-//   const filterKeys = Object.keys(filter);
+  if (currentUserId !== userId) {
+    throw new AppError(
+      401,
+      "Unauthorized to change password for this user",
+      "Change User Password Error"
+    );
+  }
 
-//   filterKeys.forEach((key) => {
-//     if (!allows.includes(key))
-//       throw new AppError(
-//         400,
-//         `Key ${key} is not allowed. Reminder: Case sensitivity`,
-//         "Get Current User List of Projects Error"
-//       );
-//   });
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch)
+    throw new AppError(
+      400,
+      "Current password is incorrect",
+      "Change User Password Error"
+    );
 
-//   // Process
-//   const filterConditions = [
-//     { isDeleted: false },
-//     {
-//       $or: [{ projectOwner: currentUserId }, { projectMembers: currentUserId }], // only projects that current user owns or is a member in
-//     },
-//   ];
+  // Process
+  const salt = await bcrypt.genSalt(10);
+  user.password = await bcrypt.hash(newPassword, salt);
+  await user.save();
 
-//   // query filters
-//   filterKeys.forEach((field) => {
-//     if (filter[field]) {
-//       const condition = (() => {
-//         switch (field) {
-//           case "search":
-//             return {
-//               $or: [
-//                 { title: { $regex: filter[field], $options: "i" } },
-//                 { description: { $regex: filter[field], $options: "i" } },
-//               ],
-//             };
-//           case "currentUserRole":
-//             if (filter[field] === "Owner") {
-//               return { projectOwner: currentUserId };
-//             } else if (filter[field] === "Lead") {
-//               return { projectLeads: currentUserId };
-//             } else if (filter[field] === "Member") {
-//               return {
-//                 $and: [
-//                   { projectMembers: currentUserId },
-//                   { projectLeads: { $ne: currentUserId } },
-//                 ],
-//               };
-//             }
-//           case "startAfter":
-//             return { startAt: { $gte: filter[field] } };
-//           case "startBefore":
-//             return { startAt: { $lte: filter[field] } };
-//           case "dueAfter":
-//             return { dueAt: { $gte: filter[field] } };
-//           case "dueBefore":
-//             return { dueAt: { $lte: filter[field] } };
-//           default:
-//             return { [field]: filter[field] };
-//         }
-//       })();
-//       filterConditions.push(condition);
-//     }
-//   });
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    user,
+    null,
+    "Change User Password successfully"
+  );
+});
 
-//   const filterCriteria = filterConditions.length
-//     ? { $and: filterConditions }
-//     : {};
+userController.resetPassword = catchAsync(async (req, res, next) => {
+  // Get data from requests
+  const { resetPasswordToken, verificationCode, newPassword } = req.body;
 
-//   const count = await Project.countDocuments(filterCriteria);
-//   const totalPages = Math.ceil(count / limit);
-//   const offset = limit * (page - 1);
+  // Business logic Validation
 
-//   let projects = await Project.find(filterCriteria)
-//     .sort({ createdAt: -1 })
-//     .skip(offset)
-//     .limit(limit);
+  const payload = await jwt.verify(resetPasswordToken, JWT_SECRET_KEY);
+  if (!payload)
+    throw new AppError(400, "Invalid token", "Reset Password Error");
 
-//   // Response
-//   return sendResponse(
-//     res,
-//     200,
-//     true,
-//     { projects, totalPages, count },
-//     null,
-//     "Get Current User List of Projects successfully"
-//   );
-// });
+  if (payload.verificationCode !== verificationCode)
+    throw new AppError(
+      400,
+      "Invalid verification code",
+      "Reset Password Error"
+    );
+
+  const user = await User.findOne({ _id: payload._id, isDeleted: false });
+
+  if (!user) throw new AppError(400, "User not found", "Reset Password Error");
+  // Process
+  const salt = await bcrypt.genSalt(10);
+  user.password = await bcrypt.hash(newPassword, salt);
+  await user.save();
+
+  // delete verification
+  await Verification.findOneAndDelete({
+    verificationCode,
+    verificationType: "ResetPassword",
+  });
+  // Response
+  return sendResponse(
+    res,
+    200,
+    true,
+    user,
+    null,
+    "Reset Password successfully"
+  );
+});
 
 userController.addProjectToUserFavorite = catchAsync(async (req, res, next) => {
   // Get data from requests

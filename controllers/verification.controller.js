@@ -4,26 +4,7 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const verificationController = {};
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // Use `true` for port 465, `false` for all other ports
-  auth: {
-    user: process.env.APP_USER,
-    pass: process.env.APP_PASSWORD, //app password from gmail account
-  },
-});
-
-const sendMail = async (transporter, mailOptions) => {
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log("Email has been sent!");
-  } catch (error) {
-    throw new Error("Send mail error");
-  }
-};
+const { transporter, sendMail } = require("../helpers/nodemailer");
 
 verificationController.createNewUserVerification = async (
   userId,
@@ -32,6 +13,7 @@ verificationController.createNewUserVerification = async (
   try {
     await Verification.deleteMany({
       user: userId,
+      verificationType: "NewUser",
     });
 
     const verificationCode = crypto.randomBytes(20).toString("hex");
@@ -39,6 +21,7 @@ verificationController.createNewUserVerification = async (
     let verification = await Verification.create({
       user: userId,
       verificationCode,
+      verificationType: "NewUser",
     });
 
     // Send email to user's email
@@ -50,7 +33,7 @@ verificationController.createNewUserVerification = async (
       }, // sender address
       to: userEmail, // receiver's email
       subject: "Confirm your email with Taskoodle", // Subject line
-      text: "abc", // plain text body
+      text: "Welcome to Taskoodle! Click on this LINK to verify your email", // plain text body
       html: `<p>Welcome to Taskoodle! Click on this <a href="${process.env.FRONT_END_PORT}/verifications/${verificationCode}">LINK</a> to verify your email.</p>
       <p>Thank you!</p>`, // html body
     };
@@ -68,6 +51,7 @@ verificationController.verifyNewUser = catchAsync(async (req, res, next) => {
   // Business logic validation
   const verification = await Verification.findOne({
     verificationCode,
+    verificationType: "NewUser",
   });
 
   if (!verification)
@@ -112,5 +96,65 @@ verificationController.verifyNewUser = catchAsync(async (req, res, next) => {
     "Verifying New User successfully"
   );
 });
+
+verificationController.requestPasswordReset = catchAsync(
+  async (req, res, next) => {
+    // Get data from requests
+    const { email } = req.body;
+
+    // Business logic validation
+    // check user exists
+    const user = await User.findOne({
+      email,
+      isDeleted: false,
+      active: true,
+    });
+
+    if (!user)
+      throw new AppError(400, "User not found", "Request Reset Password error");
+
+    // Process
+    const verificationCode = crypto.randomBytes(20).toString("hex");
+    const resetPasswordToken = await user.generateResetPasswordToken(
+      verificationCode
+    );
+
+    await Verification.deleteMany({
+      user: user._id,
+      verificationType: "ResetPassword",
+    });
+
+    await Verification.create({
+      user: user._id,
+      verificationCode,
+      verificationType: "ResetPassword",
+    });
+
+    // Send email to user's email
+    const mailOptions = {
+      from: {
+        name: "Taskoodle",
+        address: process.env.APP_USER,
+      }, // sender address
+      to: email, // receiver's email
+      subject: "Reset your password with Taskoodle", // Subject line
+      text: "Click on this LINK to reset your password", // plain text body
+      html: `<p>Click on this <a href="${process.env.FRONT_END_PORT}/resetPassword?verificationCode=${verificationCode}&token=${resetPasswordToken}">LINK</a> to reset your password.</p>
+      <p>Thank you!</p>`, // html body
+    };
+
+    sendMail(transporter, mailOptions);
+
+    // Response
+    return sendResponse(
+      res,
+      200,
+      true,
+      null,
+      null,
+      "Request Reset Password successfully"
+    );
+  }
+);
 
 module.exports = verificationController;

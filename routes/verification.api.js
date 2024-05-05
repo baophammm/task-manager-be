@@ -21,4 +21,21 @@ router.put(
   verificationController.verifyNewUser
 );
 
+/**
+ * @route POST /verifications/requestPasswordReset
+ * @description Create new requestPasswordReset
+ * @body { email }
+ * @access Public
+ */
+router.post(
+  "/requestPasswordReset",
+  validators.validate([
+    body("email", "Invalid email")
+      .exists()
+      .isEmail()
+      .normalizeEmail({ gmail_remove_dots: false }),
+  ]),
+  verificationController.requestPasswordReset
+);
+
 module.exports = router;

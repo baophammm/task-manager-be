@@ -42,10 +42,4 @@ router.post(
   authController.loginWithGoogle
 );
 
-/**
- * @route POST /auth/logout
- * @description User logout
- * @access login required
- */
-
 module.exports = router;

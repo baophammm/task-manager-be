@@ -84,41 +84,42 @@ router.delete(
 );
 
 /**
- * @route GET /users/me/projects
- * @description get a list of projects of current user
- * @query { search, currentUserRole: Owner or Lead or Member, projectStatus, startAfter, startBefore, dueAfter, dueBefore}
+ * @route PUT /users/:id/password
+ * @description Change user password
+ * @body { currentPassword, newPassword }
  * @access login required
  */
-// router.get(
-//   "/me/projects",
-//   authentication.loginRequired,
-//   validators.validate([
-//     query(
-//       "currentUserRole",
-//       "Invalid currentUserRole. Reminder: Case sensitivity"
-//     )
-//       .optional()
-//       .isString()
-//       .isIn(["Owner", "Lead", "Member"]),
-//     query("projectStatus", "Invalid Project Status. Reminder: Case sensitivity")
-//       .optional()
-//       .isString()
-//       .isIn(["Planning", "Ongoing", "Done"]),
-//     query("startAfter", "Invalid Date Format")
-//       .optional({ nullable: true, values: "falsy" })
-//       .isDate(),
-//     query("startBefore", "Invalid Date Format")
-//       .optional({ nullable: true, values: "falsy" })
-//       .isDate(),
-//     query("dueAfter", "Invalid Date Format")
-//       .optional({ nullable: true, values: "falsy" })
-//       .isDate(),
-//     query("dueBefore", "Invalid Date Format")
-//       .optional({ nullable: true, values: "falsy" })
-//       .isDate(),
-//   ]),
-//   userController.getCurrentUserProjects
-// );
+router.put(
+  "/:id/password",
+  authentication.loginRequired,
+  validators.validate([
+    param("id").exists().isString().custom(validators.checkObjectId),
+    body("currentPassword", "Invalid current password").exists().notEmpty(),
+    body("newPassword", "Invalid new password").exists().notEmpty(),
+  ]),
+  userController.changeUserPassword
+);
+
+/**
+ * @route POST /users/resetPassword
+ * @description Reset user password
+ * @body { resetPasswordToken, verificationCode, newPassword }
+ * @access Public
+ */
+router.post(
+  "/resetPassword",
+  validators.validate([
+    body("resetPasswordToken", "Invalid reset password token")
+      .exists()
+      .isString(),
+    body("verificationCode", "Invalid verification code")
+      .exists()
+      .isString()
+      .custom(validators.checkCryptoString),
+    body("newPassword", "Invalid new password").exists().notEmpty(),
+  ]),
+  userController.resetPassword
+);
 
 /**
  * @route POST /users/:id/favorite/projects

@@ -51,5 +51,20 @@ userSchema.methods.generateToken = async function () {
   return accessToken;
 };
 
+// TODO - method that generate token only for password reset - only allow access with specific verification code
+
+userSchema.methods.generateResetPasswordToken = async function (
+  verificationCode
+) {
+  const resetPasswordToken = await jwt.sign(
+    { _id: this._id, verificationCode },
+    JWT_SECRET_KEY,
+    {
+      expiresIn: "10m",
+    }
+  );
+  return resetPasswordToken;
+};
+
 const User = mongoose.model("User", userSchema);
 module.exports = User;
